@@ -1,4 +1,4 @@
-name: Test and Gas Profile
+name: Test
 
 on:
   push:
@@ -11,186 +11,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Required for comparing with main branch
-    
+        fetch-depth: 0  # Required for git history access
+
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
-    
+
     - name: Install dependencies
       run: npm ci
-    
+
     - name: Run tests
-      run: npm test
-    
-    - name: Run gas profiling
-      id: gas-profile
-      run: |
-        npx hardhat run scripts/gasProfileRunner.ts \
-          --contract RealArbitrage \
-          --function executeArbitrage \
-          --times 5 \
-          --compare-main \
-          --fail-on-diff \
-          --max-increase 5 \
-          --summary-only
-    
-    - name: Upload test results
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: |
-          test/results/*_gas_profile.json
-          test/results/*_summary.json
-          test/results/*_comparison.json
-          test/results/*_report.md
-          .cache/gas-profiles/*.json
-        if-no-files-found: error
-
-    - name: Update PR with gas profile results
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const fs = require('fs');
-          const path = require('path');
-          
-          // Find the latest comparison file
-          const resultsDir = 'test/results';
-          const files = fs.readdirSync(resultsDir)
-            .filter(file => file.endsWith('_comparison.json'))
-            .sort()
-            .reverse();
-          
-          if (files.length === 0) {
-            return;
-          }
-          
-          const comparison = JSON.parse(
-            fs.readFileSync(path.join(resultsDir, files[0]), 'utf-8')
-          );
-          
-          const formatChange = (value, percentage) => {
-            const sign = value >= 0 ? '+' : '';
-            const color = value <= 0 ? '🟢' : '🔴';
-            return `${color} ${sign}${value} (${sign}${percentage.toFixed(2)}%)`;
-          };
-
-          // Create a status check
-          const status = comparison.diff.percentageChange <= 5 ? 'success' : 'failure';
-          const statusMessage = status === 'success' 
-            ? 'Gas usage within acceptable limits'
-            : `Gas usage increased by ${comparison.diff.percentageChange.toFixed(2)}%`;
-          
-          await github.rest.checks.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            name: 'Gas Profile',
-            head_sha: context.sha,
-            status: 'completed',
-            conclusion: status,
-            output: {
-              title: statusMessage,
-              summary: `Gas usage comparison with main branch (${comparison.baselineCommit?.substring(0, 7)})`,
-              text: `## Gas Profile Comparison
-              
-              | Metric | Change |
-              |--------|--------|
-              | Average Gas | ${formatChange(comparison.diff.avgGasUsed, comparison.diff.percentageChange)} |
-              | Max Gas | ${formatChange(comparison.diff.maxGasUsed, (comparison.diff.maxGasUsed / comparison.baseline.maxGasUsed) * 100)} |
-              | Min Gas | ${formatChange(comparison.diff.minGasUsed, (comparison.diff.minGasUsed / comparison.baseline.minGasUsed) * 100)} |
-              
-              Baseline: ${comparison.baselineCommit?.substring(0, 7) || 'N/A'}
-              Current: ${comparison.currentCommit?.substring(0, 7) || 'N/A'}`
-            }
-          });
-
-          // Update PR labels
-          const labels = await github.rest.issues.listLabelsOnIssue({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number
-          });
-
-          const hasGasLabel = labels.data.some(label => 
-            label.name === 'gas:regression' || label.name === 'gas:ok'
-          );
-
-          if (!hasGasLabel) {
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              labels: [status === 'success' ? 'gas:ok' : 'gas:regression']
-            });
-          }
-          
-          // Find the markdown report
-          const reportFiles = fs.readdirSync(resultsDir)
-            .filter(file => file.endsWith('_report.md'))
-            .sort()
-            .reverse();
-
-          const reportPath = reportFiles.length > 0 
-            ? path.join(resultsDir, reportFiles[0])
-            : null;
-
-          const reportContent = reportPath 
-            ? fs.readFileSync(reportPath, 'utf-8')
-            : null;
-          
-          // Update PR comment
-          const comment = `## Gas Profile Comparison
-          
-          | Metric | Change |
-          |--------|--------|
-          | Average Gas | ${formatChange(comparison.diff.avgGasUsed, comparison.diff.percentageChange)} |
-          | Max Gas | ${formatChange(comparison.diff.maxGasUsed, (comparison.diff.maxGasUsed / comparison.baseline.maxGasUsed) * 100)} |
-          | Min Gas | ${formatChange(comparison.diff.minGasUsed, (comparison.diff.minGasUsed / comparison.baseline.minGasUsed) * 100)} |
-          
-          Baseline: ${comparison.baselineCommit?.substring(0, 7) || 'N/A'}
-          Current: ${comparison.currentCommit?.substring(0, 7) || 'N/A'}
-          
-          <details>
-          <summary>Full Details</summary>
-          
-          ${reportContent ? `\n[View Full Report](${reportPath})\n` : ''}
-          
-          \`\`\`json
-          ${JSON.stringify(comparison, null, 2)}
-          \`\`\`
-          </details>`;
-          
-          // Find existing comment
-          const comments = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number
-          });
-          
-          const existingComment = comments.data.find(
-            comment => comment.user.login === 'github-actions[bot]' && 
-                      comment.body.includes('Gas Profile Comparison')
-          );
-          
-          if (existingComment) {
-            // Update existing comment
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: existingComment.id,
-              body: comment
-            });
-          } else {
-            // Create new comment
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: comment
-            });
-          } 
+      run: npm test 
