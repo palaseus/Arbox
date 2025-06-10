@@ -1,168 +1,96 @@
-# DeFi Arbitrage Bot with ERC-4337 Account Abstraction
+# Arbox - Advanced DeFi Arbitrage Bot
 
-A sophisticated DeFi arbitrage bot that leverages ERC-4337 Account Abstraction for enhanced security and user experience.
+A sophisticated DeFi arbitrage bot that leverages ERC-4337 Account Abstraction for enhanced security and user experience. The bot executes flash loan arbitrage across multiple DEXes while maintaining strict security measures and gas optimization.
 
 ## Features
 
-- Real-time arbitrage opportunity detection
-- ERC-4337 Account Abstraction integration
-- Gas-optimized execution
-- Comprehensive test suite
-- Gas profiling and regression testing
+### Core Functionality
+- **Flash Loan Arbitrage**: Execute arbitrage opportunities using Aave V3 flash loans
+- **Multi-DEX Support**: Trade across multiple DEXes including Uniswap V2/V3 and Sushiswap
+- **ERC-4337 Integration**: Enhanced security through account abstraction
+- **Gas Optimization**: Built-in gas profiling and optimization
+- **Risk Management**: Configurable parameters for slippage, profit thresholds, and gas limits
 
-## Gas Profiling
+### Security Features
+- **Entry Point Validation**: Strict validation of transaction sources
+- **Gas Price Controls**: Maximum gas price limits to prevent MEV attacks
+- **Slippage Protection**: Configurable maximum slippage tolerance
+- **Profit Thresholds**: Minimum profit requirements in both absolute and percentage terms
 
-The project includes a robust gas profiling system that helps track and optimize gas usage. The system generates detailed reports and can be integrated into your CI/CD pipeline to prevent gas usage regressions.
+### Technical Features
+- **Modular Architecture**: Easy to extend with new DEX integrations
+- **Gas Profiling**: Detailed gas usage tracking and optimization
+- **Comprehensive Testing**: Extensive test suite covering all major functionality
+- **TypeScript Support**: Full TypeScript implementation for better development experience
 
-### Usage
+## Smart Contracts
 
-```bash
-# Basic gas profiling
-npx hardhat run scripts/gasProfileRunner.ts --contract RealArbitrage --function executeArbitrage --times 5
+### Core Contracts
+- `FlashLoanArbitrage.sol`: Main arbitrage execution contract
+- `Account.sol`: ERC-4337 account abstraction implementation
+- `Paymaster.sol`: Gas payment abstraction
+- `EntryPoint.sol`: ERC-4337 entry point implementation
 
-# Compare with baseline and fail if gas usage increases by more than 5%
-npx hardhat run scripts/gasProfileRunner.ts \
-  --contract RealArbitrage \
-  --function executeArbitrage \
-  --times 5 \
-  --compare \
-  --fail-on-diff \
-  --max-increase 5
-
-# Use a specific baseline file
-npx hardhat run scripts/gasProfileRunner.ts \
-  --contract RealArbitrage \
-  --function executeArbitrage \
-  --baseline test/results/baseline.json
-
-# Compare with main branch baseline
-npx hardhat run scripts/gasProfileRunner.ts \
-  --contract RealArbitrage \
-  --function executeArbitrage \
-  --compare-main
-
-# Generate summary-only output
-npx hardhat run scripts/gasProfileRunner.ts \
-  --contract RealArbitrage \
-  --function executeArbitrage \
-  --summary-only
-```
-
-### Command Line Options
-
-- `--contract`: Contract name to profile (required)
-- `--function`: Function name to profile (required)
-- `--times`: Number of runs (default: 5)
-- `--compare`: Compare with baseline
-- `--max-increase`: Maximum allowed gas increase percentage (default: 5)
-- `--baseline`: Path to baseline JSON file
-- `--fail-on-diff`: Fail if gas usage increases
-- `--compare-main`: Compare with main branch baseline
-- `--summary-only`: Only show summary output
-
-### Output Files
-
-The gas profiler generates three types of files in the `test/results` directory:
-
-1. `*_gas_profile.json`: Detailed gas usage data for each run
-2. `*_summary.json`: Summary statistics including average, min, max, and variance
-3. `*_comparison.json`: Comparison with baseline (if applicable)
-4. `*_report.md`: Markdown report with formatted tables
-
-Example output:
-```
-=== Gas Profiling ===
-Contract: RealArbitrage
-Function: executeArbitrage
-Runs: 5
-
-=== Summary ===
-┌─────────────────┬─────────────────┐
-│ Metric          │ Value           │
-├─────────────────┼─────────────────┤
-│ Average Gas     │ 123456         │
-│ Max Gas         │ 124567         │
-│ Min Gas         │ 122345         │
-│ Variance        │ 1234.56        │
-└─────────────────┴─────────────────┘
-
-=== Comparison with Baseline ===
-┌─────────────────┬─────────────────┐
-│ Metric          │ Change          │
-├─────────────────┼─────────────────┤
-│ Average Gas     │ +100 (+0.81%)   │
-│ Max Gas         │ +200 (+1.61%)   │
-│ Min Gas         │ +50 (+0.41%)    │
-└─────────────────┴─────────────────┘
-```
-
-### CI Integration
-
-The gas profiling system is integrated with GitHub Actions:
-- Runs on every push and pull request
-- Fails if gas usage increases beyond threshold
-- Uploads profiling results as artifacts
-- Comments PR with gas comparison table
-
-### Best Practices
-
-1. **Baseline Management**
-   - Store baseline files in version control
-   - Update baselines after significant optimizations
-   - Use meaningful commit messages when updating baselines
-
-2. **CI/CD Integration**
-   - Set appropriate gas increase thresholds
-   - Review gas changes in PR comments
-   - Archive profiling results for historical analysis
-
-3. **Development Workflow**
-   - Run gas profiling before committing changes
-   - Compare with main branch baseline
-   - Document significant gas optimizations
+### Supporting Contracts
+- `ModularArbitrageStrategy.sol`: Strategy pattern implementation
+- `ApprovalHelper.sol`: Token approval management
+- `AlwaysSuccessRouter.sol`: Testing router implementation
 
 ## Development
 
-1. Install dependencies:
+### Prerequisites
+- Node.js v20+
+- npm or yarn
+- Hardhat
+
+### Installation
 ```bash
 npm install
 ```
 
-2. Run tests:
+### Testing
 ```bash
+# Run all tests
 npm test
+
+# Run gas profiling tests
+npm run test:gas
 ```
 
-3. Run gas profiling:
+### Compilation
 ```bash
-npm run gas-profile
+npm run compile
 ```
 
-## Test Utilities
+## Configuration
 
-The project includes reusable test utilities in `test/utils/`:
+The bot can be configured through the following parameters:
 
-- `gasProfiler.ts`: Gas profiling and comparison utilities
-- `testHelpers.ts`: Common test patterns and helpers
+- `minProfit`: Minimum absolute profit required
+- `minProfitPercentage`: Minimum profit as percentage of flash loan amount
+- `maxSlippage`: Maximum allowed slippage in basis points
+- `maxGasPrice`: Maximum gas price in wei
 
-Example usage in tests:
+## Security Considerations
 
-```typescript
-import { profileGas, compareWithBaseline } from "../utils/testHelpers";
-
-describe("RealArbitrage", () => {
-  it("should execute arbitrage with acceptable gas usage", async () => {
-    await compareWithBaseline(
-      realArbitrage,
-      "executeArbitrage",
-      [],
-      5,
-      5 // max allowed gas increase percentage
-    );
-  });
-});
-```
+1. **Flash Loan Risks**: The bot uses Aave V3 flash loans, which must be repaid within the same transaction
+2. **Slippage Protection**: Maximum slippage is enforced to prevent sandwich attacks
+3. **Gas Optimization**: Gas usage is monitored and optimized
+4. **Entry Point Validation**: Strict validation of transaction sources
+5. **Profit Thresholds**: Multiple profit thresholds to ensure profitable trades
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Disclaimer
+
+This software is for educational purposes only. Use at your own risk. The authors are not responsible for any financial losses incurred through the use of this software.
