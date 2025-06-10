@@ -1,6 +1,6 @@
 # DeFi Arbitrage Bot with ERC-4337 Account Abstraction
 
-[![Test and Gas Profile](https://github.com/yourusername/defi-arbitrage-bot/actions/workflows/test.yml/badge.svg)](https://github.com/yourusername/defi-arbitrage-bot/actions/workflows/test.yml)
+[![Test and Gas Profile](https://github.com/palaseus/Arbox/actions/workflows/test.yml/badge.svg)](https://github.com/palaseus/defi-arbitrage-bot/actions/workflows/test.yml)
 
 A sophisticated DeFi arbitrage bot that leverages ERC-4337 Account Abstraction for enhanced security and user experience.
 
