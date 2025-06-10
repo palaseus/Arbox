@@ -1,13 +1,12 @@
-import { Contract } from "ethers";
-import { ContractReceipt, Event } from "@ethersproject/contracts";
+import { Contract, ContractReceipt } from "ethers";
 
 interface GasCheckpoint {
   label: string;
-  gasLeft: number;
+  gasLeft: bigint;
 }
 
 interface GasProfile {
-  totalGas: number;
+  totalGas: bigint;
   checkpoints: GasCheckpoint[];
   swaps: {
     router: string;
@@ -28,34 +27,36 @@ export class GasProfiler {
     const swaps: { router: string; inputAmount: string; outputAmount: string }[] = [];
 
     // Parse GasCheckpoint events
-    const checkpointEvents = receipt.events?.filter(
-      (event: Event) => event.event === "GasCheckpoint"
+    const checkpointEvents = receipt.logs.filter(
+      (log) => log.fragment?.name === "GasCheckpoint"
     );
     if (checkpointEvents) {
       for (const event of checkpointEvents) {
+        const args = event.args as any;
         gasCheckpoints.push({
-          label: event.args?.label,
-          gasLeft: event.args?.gasLeft.toNumber(),
+          label: args.label,
+          gasLeft: args.gasLeft,
         });
       }
     }
 
     // Parse SwapExecuted events
-    const swapEvents = receipt.events?.filter(
-      (event: Event) => event.event === "SwapExecuted"
+    const swapEvents = receipt.logs.filter(
+      (log) => log.fragment?.name === "SwapExecuted"
     );
     if (swapEvents) {
       for (const event of swapEvents) {
+        const args = event.args as any;
         swaps.push({
-          router: event.args?.router,
-          inputAmount: event.args?.inputAmount.toString(),
-          outputAmount: event.args?.outputAmount.toString(),
+          router: args.router,
+          inputAmount: args.inputAmount.toString(),
+          outputAmount: args.outputAmount.toString(),
         });
       }
     }
 
     return {
-      totalGas: receipt.gasUsed.toNumber(),
+      totalGas: receipt.gasUsed,
       checkpoints: gasCheckpoints,
       swaps: swaps,
     };

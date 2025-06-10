@@ -1,6 +1,5 @@
 import { ethers } from "hardhat";
-import { Contract } from "ethers";
-import { BigNumber } from "@ethersproject/bignumber";
+import type { Contract } from "ethers";
 
 export async function deployMockTokens() {
   try {
@@ -69,7 +68,7 @@ export async function setupLiquidity(
   const [owner] = await ethers.getSigners();
 
   // Mint tokens to owner
-  const amount = BigInt("1000000000000000000000000"); // 1M tokens
+  const amount = ethers.parseEther("1000000"); // 1M tokens
   await tokenA.mint(owner.address, amount);
   await tokenB.mint(owner.address, amount);
 
@@ -81,7 +80,7 @@ export async function setupLiquidity(
 
   // Add liquidity to Uniswap
   const uniswapAmountA = amount;
-  const uniswapAmountB = BigInt(Math.floor(Number(amount) * ratio));
+  const uniswapAmountB = amount * BigInt(Math.floor(ratio * 1e6)) / BigInt(1e6);
   await uniswapRouter.addLiquidity(
     await tokenA.getAddress(),
     await tokenB.getAddress(),
@@ -91,7 +90,7 @@ export async function setupLiquidity(
 
   // Add liquidity to Sushiswap with different ratio
   const sushiswapAmountA = amount;
-  const sushiswapAmountB = BigInt(Math.floor(Number(amount) / ratio));
+  const sushiswapAmountB = amount * BigInt(Math.floor((1/ratio) * 1e6)) / BigInt(1e6);
   await sushiswapRouter.addLiquidity(
     await tokenA.getAddress(),
     await tokenB.getAddress(),
