@@ -2,14 +2,18 @@
 pragma solidity ^0.8.20;
 
 import "./interfaces/IAccount.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title Paymaster
  * @notice Paymaster contract for ERC-4337 that handles gasless transactions
  */
-contract Paymaster {
+contract Paymaster is Ownable, ReentrancyGuard {
     // Storage for paymaster balances
     mapping(address => uint256) public balances;
+    
+    constructor() Ownable(msg.sender) {}
     
     // Storage for allowed accounts
     mapping(address => bool) public allowedAccounts;
@@ -19,12 +23,13 @@ contract Paymaster {
     event AccountDisallowed(address indexed account);
     event FundsDeposited(address indexed account, uint256 amount);
     event FundsWithdrawn(address indexed account, uint256 amount);
+    event PaymasterUsed(address indexed user, uint256 gasUsed, uint256 gasPrice);
     
     /**
      * @notice Allow an account to use the paymaster
      * @param account The account to allow
      */
-    function allowAccount(address account) external {
+    function allowAccount(address account) external onlyOwner {
         allowedAccounts[account] = true;
         emit AccountAllowed(account);
     }
@@ -33,7 +38,7 @@ contract Paymaster {
      * @notice Disallow an account from using the paymaster
      * @param account The account to disallow
      */
-    function disallowAccount(address account) external {
+    function disallowAccount(address account) external onlyOwner {
         allowedAccounts[account] = false;
         emit AccountDisallowed(account);
     }
@@ -73,6 +78,9 @@ contract Paymaster {
     ) external returns (bytes memory context, uint256 validationData) {
         require(allowedAccounts[userOp.sender], "Account not allowed");
         require(balances[msg.sender] >= maxCost, "Insufficient paymaster balance");
+        
+        // Emit event for transparency
+        emit PaymasterUsed(userOp.sender, maxCost, tx.gasprice);
         
         // Return empty context and validation data
         return ("", 0);

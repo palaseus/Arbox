@@ -77,6 +77,9 @@ describe("FlashLoanArbitrage", function () {
     // Also approve the arbitrage contract to spend tokens from the owner
     await token.connect(owner).approve(await arbitrage.getAddress(), ethers.parseEther("100.1"));
 
+    // Whitelist the token for testing
+    await arbitrage.whitelistToken(await token.getAddress());
+    
     // Get minProfit from contract
     this.minProfit = await arbitrage.minProfit();
   });
@@ -198,6 +201,32 @@ describe("FlashLoanArbitrage", function () {
           0
         )
       ).to.be.revertedWithCustomError(arbitrage, "InvalidArbPath");
+    });
+  });
+
+  describe("Token Whitelist Management", function () {
+    it("should add and remove tokens from whitelist", async function () {
+      const newToken = "0x1234567890123456789012345678901234567890";
+      
+      // Add token to whitelist
+      await arbitrage.whitelistToken(newToken);
+      expect(await arbitrage.whitelistedTokens(newToken)).to.be.true;
+      
+      // Remove token from whitelist
+      await arbitrage.removeTokenFromWhitelist(newToken);
+      expect(await arbitrage.whitelistedTokens(newToken)).to.be.false;
+    });
+
+    it("should not allow non-owner to manage whitelist", async function () {
+      const newToken = "0x1234567890123456789012345678901234567890";
+      
+      await expect(
+        arbitrage.connect(user).whitelistToken(newToken)
+      ).to.be.revertedWithCustomError(arbitrage, "OwnableUnauthorizedAccount");
+      
+      await expect(
+        arbitrage.connect(user).removeTokenFromWhitelist(newToken)
+      ).to.be.revertedWithCustomError(arbitrage, "OwnableUnauthorizedAccount");
     });
   });
 

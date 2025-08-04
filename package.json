@@ -9,6 +9,7 @@
     "test": "hardhat test",
     "test:gas": "hardhat test test/GasProfiling.test.ts",
     "gas-profile": "hardhat run scripts/gasProfileRunner.ts",
+    "gas-optimization": "hardhat run scripts/gasOptimizationReport.ts",
     "compile": "hardhat compile",
     "clean": "hardhat clean"
   },

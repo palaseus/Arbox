@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "./interfaces/IDexRouter.sol";
@@ -13,7 +14,7 @@ import "./interfaces/IAccount.sol";
  * @title FlashLoanArbitrage
  * @notice Contract for executing flash loan arbitrage using ERC-4337 account abstraction
  */
-contract FlashLoanArbitrage is Ownable {
+contract FlashLoanArbitrage is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Struct for route information
@@ -45,6 +46,9 @@ contract FlashLoanArbitrage is Ownable {
     // DEX Routers
     mapping(address => address) public routers;
     
+    // Token whitelist for security
+    mapping(address => bool) public whitelistedTokens;
+    
     // Chain ID
     uint256 public immutable chainId;
     
@@ -59,10 +63,10 @@ contract FlashLoanArbitrage is Ownable {
     uint256 private constant MAX_ROUTES = 4;
     uint256 private constant MAX_SWAP_DEADLINE = 300;
     
-    // Risk management parameters
-    uint256 public minProfitPercentage; // Minimum profit as percentage of flash loan amount
-    uint256 public maxSlippage; // Maximum allowed slippage in basis points (1 = 0.01%)
-    uint256 public maxGasPrice; // Maximum gas price in wei
+    // Risk management parameters (optimized for gas)
+    uint128 public minProfitPercentage; // Minimum profit as percentage of flash loan amount
+    uint64 public maxSlippage; // Maximum allowed slippage in basis points (1 = 0.01%)
+    uint64 public maxGasPrice; // Maximum gas price in wei
 
     // Events
     event ArbitrageExecuted(
@@ -74,9 +78,24 @@ contract FlashLoanArbitrage is Ownable {
         uint256 gasPrice
     );
     
+    event SlippageViolation(
+        address indexed router,
+        uint256 expectedAmount,
+        uint256 actualAmount,
+        uint256 slippage
+    );
+    
+    event FlashLoanFailed(
+        address indexed token,
+        uint256 amount,
+        string reason
+    );
+    
     event ProfitRecipientUpdated(address indexed newRecipient);
     event RouterAdded(address indexed router, address indexed factory);
     event RouterRemoved(address indexed router);
+    event TokenWhitelisted(address indexed token);
+    event TokenRemovedFromWhitelist(address indexed token);
     event GasCheckpoint(string label, uint256 gasLeft);
     event SwapExecuted(address indexed router, uint256 amountIn, uint256 amountOut);
 
@@ -86,6 +105,10 @@ contract FlashLoanArbitrage is Ownable {
     error NotEnoughToRepay();
     error InvalidArbPath();
     error GasLimitExceeded();
+    error TokenNotWhitelisted(address token);
+    error InvalidTokenAddress();
+    error InvalidAmount();
+    error InvalidRouterAddress();
 
     bool public testBypassEntryPoint = false;
 
@@ -93,9 +116,9 @@ contract FlashLoanArbitrage is Ownable {
         address _poolAddressesProvider,
         address _profitRecipient,
         uint256 _minProfit,
-        uint256 _minProfitPercentage,
-        uint256 _maxSlippage,
-        uint256 _maxGasPrice
+        uint128 _minProfitPercentage,
+        uint64 _maxSlippage,
+        uint64 _maxGasPrice
     ) Ownable(msg.sender) {
         IPoolAddressesProvider provider = IPoolAddressesProvider(_poolAddressesProvider);
         pool = IPool(provider.getPool());
@@ -112,9 +135,9 @@ contract FlashLoanArbitrage is Ownable {
      * @param router The router address
      * @param factory The factory address
      */
-    function addRouter(address router, address factory) external onlyOwner {
-        require(router != address(0), "Invalid router");
-        require(factory != address(0), "Invalid factory");
+    function addRouter(address router, address factory) external onlyOwner nonReentrant {
+        if (router == address(0)) revert InvalidRouterAddress();
+        if (factory == address(0)) revert InvalidRouterAddress();
         routers[router] = factory;
         emit RouterAdded(router, factory);
     }
@@ -123,8 +146,8 @@ contract FlashLoanArbitrage is Ownable {
      * @notice Remove a DEX router
      * @param router The router address
      */
-    function removeRouter(address router) external onlyOwner {
-        require(router != address(0), "Invalid router");
+    function removeRouter(address router) external onlyOwner nonReentrant {
+        if (router == address(0)) revert InvalidRouterAddress();
         delete routers[router];
         emit RouterRemoved(router);
     }
@@ -138,6 +161,26 @@ contract FlashLoanArbitrage is Ownable {
     }
 
     /**
+     * @notice Add a token to the whitelist
+     * @param token The token address to whitelist
+     */
+    function whitelistToken(address token) external onlyOwner {
+        if (token == address(0)) revert InvalidTokenAddress();
+        whitelistedTokens[token] = true;
+        emit TokenWhitelisted(token);
+    }
+
+    /**
+     * @notice Remove a token from the whitelist
+     * @param token The token address to remove
+     */
+    function removeTokenFromWhitelist(address token) external onlyOwner {
+        if (token == address(0)) revert InvalidTokenAddress();
+        whitelistedTokens[token] = false;
+        emit TokenRemovedFromWhitelist(token);
+    }
+
+    /**
      * @notice Execute arbitrage
      * @param token The token to arbitrage
      * @param amount The amount to borrow
@@ -148,7 +191,7 @@ contract FlashLoanArbitrage is Ownable {
         uint256 amount,
         Route[] calldata routes,
         uint256 minProfitRequired
-    ) external {
+    ) external nonReentrant {
         uint256 startGas = gasleft();
         emit GasCheckpoint("start_executeArbitrage", startGas);
         
@@ -162,16 +205,25 @@ contract FlashLoanArbitrage is Ownable {
         
         require(gasleft() > GAS_BUFFER, "Gas too low, aborting");
         require(routes.length == 2, "Invalid routes length");
-        require(token != address(0), "Invalid token");
-        require(amount > 0, "Invalid amount");
+        
+        // Input validation
+        if (token == address(0)) revert InvalidTokenAddress();
+        if (amount == 0) revert InvalidAmount();
+        if (!whitelistedTokens[token]) revert TokenNotWhitelisted(token);
         
         // Calculate minimum required profit including gas costs
         uint256 estimatedGasCost = currentGasPrice * 500000; // Estimate 500k gas
-        uint256 minProfitWithGas = minProfitRequired + estimatedGasCost;
+        uint256 minProfitWithGas;
+        unchecked {
+            minProfitWithGas = minProfitRequired + estimatedGasCost;
+        }
         require(minProfitWithGas >= minProfit, "Insufficient min profit");
         
         // Calculate minimum profit percentage
-        uint256 minProfitAmount = (amount * minProfitPercentage) / 10000; // Convert basis points to percentage
+        uint256 minProfitAmount;
+        unchecked {
+            minProfitAmount = (amount * minProfitPercentage) / 10000; // Convert basis points to percentage
+        }
         require(minProfitWithGas >= minProfitAmount, "Insufficient profit percentage");
         
         // Request flash loan
@@ -198,7 +250,10 @@ contract FlashLoanArbitrage is Ownable {
             referralCode
         );
         
-        uint256 gasUsed = startGas - gasleft();
+        uint256 gasUsed;
+        unchecked {
+            gasUsed = startGas - gasleft();
+        }
         emit GasCheckpoint("end_executeArbitrage", gasleft());
         emit ArbitrageExecuted(msg.sender, token, amount, 0, gasUsed, currentGasPrice);
     }
@@ -385,7 +440,7 @@ contract FlashLoanArbitrage is Ownable {
      * @notice Set maximum allowed slippage
      * @param newMaxSlippage New maximum slippage in basis points (1 = 0.01%)
      */
-    function setMaxSlippage(uint256 newMaxSlippage) external onlyOwner {
+    function setMaxSlippage(uint64 newMaxSlippage) external onlyOwner {
         require(newMaxSlippage <= 500, "Slippage too high"); // Max 5%
         maxSlippage = newMaxSlippage;
     }

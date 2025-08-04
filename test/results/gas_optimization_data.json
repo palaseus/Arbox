@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-08-04T22:54:12.041Z",
+  "summary": {
+    "totalGasSaved": 21035,
+    "totalBefore": 204044,
+    "totalPercentageSaved": 10.309050989002372
+  },
+  "details": [
+    {
+      "function": "validatePaymasterUserOp",
+      "beforeOptimization": 29044,
+      "afterOptimization": 31269,
+      "gasSaved": -2225,
+      "percentageSaved": -7.660790524721113
+    },
+    {
+      "function": "whitelistToken",
+      "beforeOptimization": 45000,
+      "afterOptimization": 47311,
+      "gasSaved": -2311,
+      "percentageSaved": -5.135555555555555
+    },
+    {
+      "function": "removeTokenFromWhitelist",
+      "beforeOptimization": 35000,
+      "afterOptimization": 25295,
+      "gasSaved": 9705,
+      "percentageSaved": 27.72857142857143
+    },
+    {
+      "function": "addRouter",
+      "beforeOptimization": 55000,
+      "afterOptimization": 50798,
+      "gasSaved": 4202,
+      "percentageSaved": 7.64
+    },
+    {
+      "function": "removeRouter",
+      "beforeOptimization": 40000,
+      "afterOptimization": 28336,
+      "gasSaved": 11664,
+      "percentageSaved": 29.160000000000004
+    }
+  ]
+}
