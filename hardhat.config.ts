@@ -19,9 +19,9 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      forking: {
-        url: process.env.MAINNET_RPC_URL || "",
-      },
+      forking: process.env.MAINNET_RPC_URL ? {
+        url: process.env.MAINNET_RPC_URL,
+      } : undefined,
     },
   },
   etherscan: {

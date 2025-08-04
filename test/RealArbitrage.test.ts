@@ -22,6 +22,12 @@ describe("Real Arbitrage Simulation", function () {
   let usdt: IERC20;
 
   before(async function () {
+    // Skip test if no mainnet RPC URL is provided
+    if (!process.env.MAINNET_RPC_URL) {
+      this.skip();
+      return;
+    }
+    
     // Set block number for consistent testing
     await ethers.provider.send("hardhat_reset", [
       {

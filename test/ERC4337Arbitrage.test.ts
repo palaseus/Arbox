@@ -56,10 +56,20 @@ describe("ERC-4337 Arbitrage", function () {
         paymaster = await PaymasterF.deploy() as Paymaster;
         await paymaster.waitForDeployment();
         
+        // Deploy mock Aave Pool
+        const MockPool = await ethers.getContractFactory("MockAavePool");
+        const mockPool = await MockPool.deploy();
+        await mockPool.waitForDeployment();
+
+        // Deploy mock PoolAddressesProvider
+        const MockProvider = await ethers.getContractFactory("MockPoolAddressesProvider");
+        const mockProvider = await MockProvider.deploy(await mockPool.getAddress());
+        await mockProvider.waitForDeployment();
+
         // Deploy Arbitrage
         const ArbitrageF = await ethers.getContractFactory("FlashLoanArbitrage");
         arbitrage = await ArbitrageF.deploy(
-            config.aave.POOL_ADDRESSES_PROVIDER,
+            await mockProvider.getAddress(),
             owner.address,
             config.testParams.minProfit.toString(),
             50, // minProfitPercentage (0.5%)
