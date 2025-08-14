@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "./interfaces/IAccount.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "hardhat/console.sol";
+
 
 /**
  * @title Account
@@ -77,40 +77,9 @@ contract Account is IAccount {
         bytes32 userOpHash,
         uint256 missingAccountFunds
     ) external override returns (uint256 validationData) {
-        console.log("\n=== validateUserOp Debug ===");
-        console.log("userOpHash");
-        console.logBytes32(userOpHash);
-        console.log("Raw signature bytes:");
-        console.logBytes(userOp.signature);
-        
-        // Extract RSV components (ethers v6 format)
-        (uint8 v, bytes32 r, bytes32 s) = _splitSignature(userOp.signature);
-        console.log("\nExtracted signature components:");
-        console.log("v (decimal)");
-        console.logUint(uint256(v));
-        console.log("v (hex)");
-        console.logUint(uint256(v));
-        console.log("r");
-        console.logBytes32(r);
-        console.log("s");
-        console.logBytes32(s);
-
-        // Get the prefixed hash
+                (uint8 v, bytes32 r, bytes32 s) = _splitSignature(userOp.signature);
         bytes32 prefixedHash = _ethSignedMessageHash(userOpHash);
-        console.log("\nHash values:");
-        console.log("userOpHash");
-        console.logBytes32(userOpHash);
-        console.log("prefixedHash");
-        console.logBytes32(prefixedHash);
-
-        // Recover signer
         address recovered = ecrecover(prefixedHash, v, r, s);
-        console.log("\nRecovery results:");
-        console.log("Recovered address");
-        console.logAddress(recovered);
-        console.log("Expected owner");
-        console.logAddress(owner);
-        console.log("=== End validateUserOp Debug ===\n");
 
         require(recovered == owner, "Invalid signature");
         require(nonce++ == userOp.nonce, "Invalid nonce");
@@ -123,7 +92,7 @@ contract Account is IAccount {
         return 0;
     }
     
-    function _recoverSigner(bytes32 messageHash, bytes memory signature) internal returns (address) {
+    function _recoverSigner(bytes32 messageHash, bytes memory signature) internal pure returns (address) {
         require(signature.length == 65, "Invalid signature length");
         
         bytes32 r;
@@ -149,25 +118,7 @@ contract Account is IAccount {
     }
     
     function _ethSignedMessageHash(bytes32 hash) internal pure returns (bytes32) {
-        console.log("\n=== _ethSignedMessageHash Debug ===");
-        console.log("Input hash");
-        console.logBytes32(hash);
-        
-        // Match ethers.js prefix exactly
-        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
-        bytes memory message = abi.encodePacked(hash);
-        bytes memory prefixedMessage = abi.encodePacked(prefix, message);
-        bytes32 finalHash = keccak256(prefixedMessage);
-        
-        console.log("Prefix bytes:");
-        console.logBytes(prefix);
-        console.log("Message bytes:");
-        console.logBytes(message);
-        console.log("Prefixed message bytes:");
-        console.logBytes(prefixedMessage);
-        console.log("Final hash:");
-        console.logBytes32(finalHash);
-        console.log("=== End _ethSignedMessageHash Debug ===\n");
+                bytes memory prefix = "\x19Ethereum Signed Message:\n32";        bytes memory message = abi.encodePacked(hash);        bytes memory prefixedMessage = abi.encodePacked(prefix, message);        bytes32 finalHash = keccak256(prefixedMessage);
         
         return finalHash;
     }
@@ -199,13 +150,7 @@ contract Account is IAccount {
      * @return s The s component
      */
     function _splitSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
-        console.log("\n=== _splitSignature Debug ===");
-        console.log("Signature length");
-        console.logUint(sig.length);
-        console.log("Raw signature bytes:");
-        console.logBytes(sig);
-        
-        require(sig.length == 65, "Invalid signature length");
+                require(sig.length == 65, "Invalid signature length");
         
         assembly {
             // First 32 bytes, after the length prefix
@@ -220,17 +165,6 @@ contract Account is IAccount {
         if (v < 27) {
             v += 27;
         }
-        
-        console.log("\nExtracted components:");
-        console.log("r");
-        console.logBytes32(r);
-        console.log("s");
-        console.logBytes32(s);
-        console.log("v (decimal)");
-        console.logUint(uint256(v));
-        console.log("v (hex)");
-        console.logUint(uint256(v));
-        console.log("=== End _splitSignature Debug ===\n");
         
         return (v, r, s);
     }
@@ -252,4 +186,4 @@ contract Account is IAccount {
     }
 
     receive() external payable {}
-} 
+}

@@ -44,4 +44,8 @@ contract SushiRouter is IDexRouter {
         uint256[] memory amounts = router.getAmountsIn(params.amountIn, path);
         amountIn = amounts[0];
     }
+
+    function getReserves(address tokenA, address tokenB) external view override returns (uint256 reserveA, uint256 reserveB) {
+        return (0, 0);
+    }
 } 

@@ -28,4 +28,8 @@ contract AlwaysSuccessRouter is IDexRouter {
         // Return the required input amount for the desired output
         return (params.amountIn * 100) / PROFIT_PERCENTAGE;
     }
+
+    function getReserves(address tokenA, address tokenB) external view override returns (uint256 reserveA, uint256 reserveB) {
+        return (0, 0);
+    }
 } 

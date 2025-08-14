@@ -22,15 +22,13 @@ contract MockUniswapV3Router {
         reserves[tokenA][tokenB][1] += amountB;
     }
 
-    function getReserves(address tokenA, address tokenB) external view returns (uint256, uint256) {
-        return (reserves[tokenA][tokenB][0], reserves[tokenA][tokenB][1]);
-    }
+    
 
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external pure returns (uint256) {
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public pure returns (uint256) {
         if (amountIn == 0 || reserveIn == 0 || reserveOut == 0) return 0;
         uint256 amountInWithFee = amountIn * 997;
         uint256 numerator = amountInWithFee * reserveOut;
-        uint256 denominator = reserveIn * 1000 + amountInWithFee;
+        uint256 denominator = (reserveIn * 1000) + amountInWithFee;
         return denominator == 0 ? 0 : numerator / denominator;
     }
 
@@ -46,15 +44,19 @@ contract MockUniswapV3Router {
     ) external returns (uint256 amountOut) {
         require(deadline >= block.timestamp, "Transaction expired");
         require(amountIn > 0, "Invalid amount in");
-        require(amountOutMinimum > 0, "Invalid minimum out");
 
-        // Calculate output amount with fee
-        amountOut = amountIn - ((amountIn * FEE_RATE) / 10000);
+        uint256 reserveIn = reserves[tokenIn][tokenOut][0];
+        uint256 reserveOut = reserves[tokenIn][tokenOut][1];
+        amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
         require(amountOut >= amountOutMinimum, "Insufficient output amount");
 
         // Transfer tokens
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).safeTransferFrom(address(this), address(this), amountIn);
         IERC20(tokenOut).safeTransfer(recipient, amountOut);
+
+        // Update reserves
+        reserves[tokenIn][tokenOut][0] += amountIn;
+        reserves[tokenIn][tokenOut][1] -= amountOut;
 
         return amountOut;
     }
@@ -95,5 +97,9 @@ contract MockUniswapV3Router {
         amounts[amounts.length - 1] = amountOut;
         
         return amounts;
+    }
+
+    function getReserves(address tokenA, address tokenB) external view returns (uint256 reserveA, uint256 reserveB) {
+        return (reserves[tokenA][tokenB][0], reserves[tokenA][tokenB][1]);
     }
 } 

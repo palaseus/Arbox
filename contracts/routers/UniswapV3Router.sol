@@ -42,4 +42,8 @@ contract UniswapV3Router is IDexRouter {
         // This is a simplified version - in production, you'd use the actual Quoter
         amountIn = params.amountIn; // Placeholder
     }
+
+    function getReserves(address tokenA, address tokenB) external view override returns (uint256 reserveA, uint256 reserveB) {
+        return (0, 0);
+    }
 } 

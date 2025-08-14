@@ -15,4 +15,5 @@ interface IDexRouter {
     function swap(SwapParams calldata params) external returns (uint256 amountOut);
     function getAmountOut(SwapParams calldata params) external view returns (uint256 amountOut);
     function getAmountIn(SwapParams calldata params) external view returns (uint256 amountIn);
+    function getReserves(address tokenA, address tokenB) external view returns (uint256 reserveA, uint256 reserveB);
 } 

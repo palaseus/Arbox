@@ -8,10 +8,20 @@
   "scripts": {
     "test": "hardhat test",
     "test:gas": "hardhat test test/GasProfiling.test.ts",
+    "test:advanced": "hardhat test test/AdvancedArbitrageEngine.test.ts",
     "gas-profile": "hardhat run scripts/gasProfileRunner.ts",
     "gas-optimization": "hardhat run scripts/gasOptimizationReport.ts",
+    "monitor": "hardhat run scripts/monitor.ts",
     "compile": "hardhat compile",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy-testnet.ts --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy-testnet.ts --network sepolia",
+    "deploy:mumbai": "hardhat run scripts/deploy-testnet.ts --network mumbai",
+    "deploy:arbitrum": "hardhat run scripts/deploy-testnet.ts --network arbitrumSepolia",
+    "test:local": "hardhat test --network localhost",
+    "monitor:local": "hardhat run scripts/monitor.ts --network localhost",
+    "demo": "hardhat run scripts/demo-local.ts --network localhost"
   },
   "keywords": [],
   "author": "",

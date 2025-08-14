@@ -19,6 +19,7 @@ describe("Arbitrage Simulation", function () {
   let tokenB: Contract;
   let tokenC: Contract;
   let gasProfiler: GasProfiler;
+  let maxSlippage: number;
 
   // Mock token pairs to simulate
   const TOKEN_PAIRS = [
@@ -62,8 +63,9 @@ describe("Arbitrage Simulation", function () {
     const profitAddr = await profitRecipient.getAddress();
     const minProfit = 0n; // Set to zero for simulation to pass with mock pool
     const minProfitPercentage = 0n; // Set to zero for simulation to pass with mock pool
-    const maxSlippage = 100n; // 1%
+    maxSlippage = 50; // Set to 50 basis points (0.5%) to allow for some slippage
     const maxGasPrice = ethers.parseUnits("100", 9); // 100 gwei
+    maxSlippage = 50; // Set to 50 basis points (0.5%) to allow for some slippage
     console.log('poolAddr:', poolAddr, 'type:', typeof poolAddr);
     console.log('profitAddr:', profitAddr, 'type:', typeof profitAddr);
     console.log('minProfit value:', minProfit, 'type:', typeof minProfit);
@@ -71,12 +73,20 @@ describe("Arbitrage Simulation", function () {
     const deployed = await FlashLoanArbitrage.deploy(
       poolAddr,
       profitAddr,
-      minProfit,
       minProfitPercentage,
       maxSlippage,
       maxGasPrice
     );
     flashLoanArbitrage = await deployed.waitForDeployment() as unknown as Contract;
+
+    // Whitelist tokens
+    await flashLoanArbitrage.whitelistToken(await tokenA.getAddress());
+    await flashLoanArbitrage.whitelistToken(await tokenB.getAddress());
+    await flashLoanArbitrage.whitelistToken(await tokenC.getAddress());
+
+    // Add routers
+    await flashLoanArbitrage.addRouter(await uniswapV3Router.getAddress(), owner.address);
+    await flashLoanArbitrage.addRouter(await sushiswapRouter.getAddress(), owner.address);
 
     // Initialize gas profiler
     gasProfiler = new GasProfiler(flashLoanArbitrage);
@@ -131,36 +141,33 @@ describe("Arbitrage Simulation", function () {
               try {
                 // Execute arbitrage
                 await flashLoanArbitrage.setTestBypassEntryPoint(true);
+                
                 const routeObjs = [
                   {
                     router: await uniswapV3Router.getAddress(),
                     tokenIn: await tokenA.getAddress(),
                     tokenOut: await tokenB.getAddress(),
                     amountIn: amount,
-                    minAmountOut: amount - ((amount * 100n) / 10000n), // 1% slippage
-                    path: ethers.solidityPacked([
-                      "address", "uint24", "address"
-                    ], [await tokenA.getAddress(), 3000, await tokenB.getAddress()]),
+                    minAmountOut: (uniswapOutput * (10000n - BigInt(maxSlippage))) / 10000n - 1n,
+                    path: ethers.solidityPacked([], []),
                     fee: 3000
                   },
                   {
                     router: await sushiswapRouter.getAddress(),
                     tokenIn: await tokenB.getAddress(),
                     tokenOut: await tokenA.getAddress(),
-                    amountIn: 0,
-                    minAmountOut: expectedProfit + amount - ((amount * 100n) / 10000n), // 1% slippage
-                    path: ethers.solidityPacked([
-                      "address", "uint24", "address"
-                    ], [await tokenB.getAddress(), 3000, await tokenA.getAddress()]),
-                    fee: 3000
+                    amountIn: uniswapOutput,
+                    minAmountOut: (sushiswapOutput * (10000n - BigInt(maxSlippage))) / 10000n - 1n,
+                    path: ethers.solidityPacked(["address", "address"], [await tokenB.getAddress(), await tokenA.getAddress()]),
+                    fee: 0
                   }
                 ];
-                const tx = await flashLoanArbitrage.executeArbitrage(
+                
+                  const tx = await flashLoanArbitrage.executeArbitrage(
                   await tokenA.getAddress(),
                   amount,
                   routeObjs,
-                  0 // minProfit
-                );
+                  );
                 // Profile gas usage
                 const gasProfile = await gasProfiler.profileTransaction(tx);
                 txSucceeded = true;

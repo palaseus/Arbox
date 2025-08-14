@@ -36,4 +36,8 @@ contract MaliciousRouter is IDexRouter {
         // Return a fake amount for testing
         return params.amountIn;
     }
+
+    function getReserves(address tokenA, address tokenB) external view override returns (uint256 reserveA, uint256 reserveB) {
+        return (0, 0);
+    }
 } 

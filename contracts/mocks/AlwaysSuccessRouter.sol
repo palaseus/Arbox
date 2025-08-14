@@ -14,4 +14,8 @@ contract AlwaysSuccessRouter is IDexRouter {
     function getAmountIn(SwapParams calldata params) external pure override returns (uint256) {
         return params.amountIn;
     }
+
+    function getReserves(address tokenA, address tokenB) external view override returns (uint256 reserveA, uint256 reserveB) {
+        return (0, 0);
+    }
 } 
