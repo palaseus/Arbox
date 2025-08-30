@@ -11,7 +11,7 @@ const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.20",
     settings: {
-              viaIR: true,
+      viaIR: true,
       optimizer: {
         enabled: true,
         runs: 1000,
@@ -20,9 +20,10 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      forking: process.env.MAINNET_RPC_URL ? {
-        url: process.env.MAINNET_RPC_URL,
-      } : undefined,
+      // Disable forking for tests to avoid external API calls
+      forking: undefined,
+      // Disable ENS resolution in test environment
+      ens: false,
     },
     localhost: {
       url: "http://127.0.0.1:8545",

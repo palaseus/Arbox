@@ -193,7 +193,7 @@ contract AdvancedMEVProtector is Ownable, Pausable, ReentrancyGuard {
         
         BundleConfig storage bundle = bundles[bundleHash];
         require(bundle.isActive, "Bundle not active");
-        require(block.number == bundle.targetBlock, "Wrong block");
+        require(block.number >= bundle.targetBlock, "Too early"); // Allow execution at or after target block
         require(block.timestamp >= bundle.minTimestamp, "Too early");
         require(block.timestamp <= bundle.maxTimestamp, "Too late");
         

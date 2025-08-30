@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbox - Advanced DeFi Arbitrage Engine</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .status-active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .status-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+        .status-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-gray-800 border-b border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <h1 class="text-xl font-bold text-white">🚀 Arbox</h1>
+                    </div>
+                    <div class="hidden md:block">
+                        <div class="ml-10 flex items-baseline space-x-4">
+                            <a href="#dashboard" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                            <a href="#strategies" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Strategies</a>
+                            <a href="#analytics" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Analytics</a>
+                            <a href="#settings" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Settings</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-green-500 rounded-full pulse"></div>
+                        <span class="text-sm text-gray-300">Live</span>
+                    </div>
+                    <button id="connect-wallet" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Connect Wallet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Status Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-gray-800 rounded-lg p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-500 bg-opacity-20">
+                        <i class="fas fa-chart-line text-green-500 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Total Profit</p>
+                        <p class="text-2xl font-bold text-white" id="total-profit">+2.8 ETH</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 rounded-lg p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-500 bg-opacity-20">
+                        <i class="fas fa-exchange-alt text-blue-500 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Success Rate</p>
+                        <p class="text-2xl font-bold text-white" id="success-rate">80%</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 rounded-lg p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-500 bg-opacity-20">
+                        <i class="fas fa-bolt text-yellow-500 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Active Strategies</p>
+                        <p class="text-2xl font-bold text-white" id="active-strategies">3</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 rounded-lg p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-purple-500 bg-opacity-20">
+                        <i class="fas fa-shield-alt text-purple-500 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">MEV Protection</p>
+                        <p class="text-2xl font-bold text-white" id="mev-protection">Active</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Real-time Activity -->
+            <div class="lg:col-span-2">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-bold text-white">Real-time Activity</h2>
+                        <div class="flex space-x-2">
+                            <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">Start</button>
+                            <button class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">Stop</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Activity Feed -->
+                    <div class="space-y-4 max-h-96 overflow-y-auto">
+                        <div class="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div class="flex-1">
+                                <p class="text-sm text-white">Arbitrage opportunity found: ETH/USDC on Uniswap V3</p>
+                                <p class="text-xs text-gray-400">Expected profit: 0.15% | Gas: 0.002 ETH</p>
+                            </div>
+                            <span class="text-xs text-gray-400">2s ago</span>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div class="flex-1">
+                                <p class="text-sm text-white">Flash loan executed: 1000 ETH from Aave V3</p>
+                                <p class="text-xs text-gray-400">Amount: 1000 ETH | Fee: 0.09%</p>
+                            </div>
+                            <span class="text-xs text-gray-400">5s ago</span>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div class="flex-1">
+                                <p class="text-sm text-white">Swap completed: ETH → USDC on SushiSwap</p>
+                                <p class="text-xs text-gray-400">Amount: 10 ETH | Received: 18,500 USDC</p>
+                            </div>
+                            <span class="text-xs text-gray-400">8s ago</span>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg">
+                            <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                            <div class="flex-1">
+                                <p class="text-sm text-white">MEV protection activated: Sandwich attack detected</p>
+                                <p class="text-xs text-gray-400">Transaction delayed by 2 blocks</p>
+                            </div>
+                            <span class="text-xs text-gray-400">12s ago</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Profit Chart -->
+                <div class="bg-gray-800 rounded-lg p-6 mt-6">
+                    <h2 class="text-xl font-bold text-white mb-6">Profit History</h2>
+                    <canvas id="profitChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+            
+            <!-- Controls & Settings -->
+            <div class="space-y-6">
+                <!-- Quick Controls -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold text-white mb-6">Quick Controls</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Min Profit Threshold</label>
+                            <input type="range" min="0.1" max="2.0" step="0.1" value="0.5" class="w-full" id="profit-threshold">
+                            <div class="flex justify-between text-xs text-gray-400 mt-1">
+                                <span>0.1%</span>
+                                <span id="profit-threshold-value">0.5%</span>
+                                <span>2.0%</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Max Gas Price (Gwei)</label>
+                            <input type="number" value="50" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" id="max-gas-price">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Max Exposure (ETH)</label>
+                            <input type="number" value="1000" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" id="max-exposure">
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <button class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
+                                <i class="fas fa-play mr-2"></i>Start
+                            </button>
+                            <button class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-sm font-medium">
+                                <i class="fas fa-stop mr-2"></i>Stop
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Strategy Status -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold text-white mb-6">Strategy Status</h2>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-3 bg-gray-700 rounded">
+                            <div>
+                                <p class="text-sm font-medium text-white">AI Arbitrage Strategy</p>
+                                <p class="text-xs text-gray-400">DeepSeek AI powered</p>
+                            </div>
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-3 bg-gray-700 rounded">
+                            <div>
+                                <p class="text-sm font-medium text-white">Flash Loan Strategy</p>
+                                <p class="text-xs text-gray-400">Aave V3 integration</p>
+                            </div>
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-3 bg-gray-700 rounded">
+                            <div>
+                                <p class="text-sm font-medium text-white">Cross-Chain Strategy</p>
+                                <p class="text-xs text-gray-400">Multi-network arbitrage</p>
+                            </div>
+                            <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Network Status -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold text-white mb-6">Network Status</h2>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">Ethereum Mainnet</span>
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">Polygon</span>
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">Arbitrum</span>
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-400">Optimism</span>
+                            <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
+

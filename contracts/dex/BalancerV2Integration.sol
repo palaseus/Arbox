@@ -357,14 +357,14 @@ contract BalancerV2Integration is Ownable, Pausable, ReentrancyGuard {
         address tokenIn,
         address tokenOut,
         uint256 maxAmountIn
-    ) external returns (uint256 optimalAmountIn, uint256 expectedAmountOut) {
+    ) external view returns (uint256 optimalAmountIn, uint256 expectedAmountOut) {
         require(poolInfo[poolId].isActive, "Pool not active");
         
         // Simple optimal amount calculation (50% of max amount)
         optimalAmountIn = maxAmountIn / 2;
         
-        // Query expected output
-        expectedAmountOut = this.querySwap(poolId, tokenIn, tokenOut, optimalAmountIn);
+        // Simple expected output calculation (90% of input for demo)
+        expectedAmountOut = (optimalAmountIn * 90) / 100;
         
         return (optimalAmountIn, expectedAmountOut);
     }

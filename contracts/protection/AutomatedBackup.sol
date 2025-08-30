@@ -174,7 +174,7 @@ contract AutomatedBackup is Ownable, Pausable, ReentrancyGuard {
         require(authorizedRecoveryOperators[msg.sender], "Unauthorized recovery operator");
         
         BackupData storage backup = backups[backupId];
-        if (backup.backupId == 0) {
+        if (backup.timestamp == 0) {
             revert BackupNotFound(backupId);
         }
         
@@ -202,7 +202,7 @@ contract AutomatedBackup is Ownable, Pausable, ReentrancyGuard {
         require(authorizedRecoveryOperators[msg.sender], "Unauthorized recovery operator");
         
         BackupData storage backup = backups[backupId];
-        if (backup.backupId == 0) {
+        if (backup.timestamp == 0) {
             revert BackupNotFound(backupId);
         }
         
@@ -240,7 +240,7 @@ contract AutomatedBackup is Ownable, Pausable, ReentrancyGuard {
      */
     function deleteBackup(uint256 backupId) external onlyOwner {
         BackupData storage backup = backups[backupId];
-        if (backup.backupId == 0) {
+        if (backup.timestamp == 0) {
             revert BackupNotFound(backupId);
         }
         
@@ -307,7 +307,7 @@ contract AutomatedBackup is Ownable, Pausable, ReentrancyGuard {
      */
     function getBackup(uint256 backupId) external view returns (BackupData memory backup) {
         backup = backups[backupId];
-        if (backup.backupId == 0) {
+        if (backup.timestamp == 0) {
             revert BackupNotFound(backupId);
         }
         return backup;
@@ -322,7 +322,7 @@ contract AutomatedBackup is Ownable, Pausable, ReentrancyGuard {
         uint256 index = 0;
         
         for (uint256 i = 0; i < _backupIdCounter; i++) {
-            if (backups[i].backupId != 0) {
+            if (backups[i].timestamp != 0) {
                 backupIds[index] = i;
                 index++;
             }
@@ -367,7 +367,7 @@ contract AutomatedBackup is Ownable, Pausable, ReentrancyGuard {
         
         for (uint256 i = 0; i < _backupIdCounter; i++) {
             BackupData storage backup = backups[i];
-            if (backup.backupId != 0 && backup.timestamp < oldestTimestamp) {
+            if (backup.timestamp != 0 && backup.timestamp < oldestTimestamp) {
                 oldestBackupId = i;
                 oldestTimestamp = backup.timestamp;
             }

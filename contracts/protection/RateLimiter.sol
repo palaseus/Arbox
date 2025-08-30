@@ -85,7 +85,7 @@ contract RateLimiter is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Check if a request is allowed based on rate limits
+     * @notice Check if a request is allowed based on rate limits (view function)
      * @param limitId Unique identifier for the rate limit
      * @param user Address of the user making the request
      * @return allowed Whether the request is allowed
@@ -93,6 +93,7 @@ contract RateLimiter is Ownable, Pausable, ReentrancyGuard {
      */
     function checkRateLimit(bytes32 limitId, address user) 
         external 
+        view 
         returns (bool allowed, uint256 delay) 
     {
         require(!emergencyStop, "Emergency stop is active");
@@ -104,7 +105,7 @@ contract RateLimiter is Ownable, Pausable, ReentrancyGuard {
         
         // Check specific rate limit
         RateLimit storage limit = rateLimits[limitId];
-        if (limit.isActive && !checkSpecificRateLimit(limitId, user)) {
+        if (limit.isActive && !checkSpecificRateLimitView(limitId, user)) {
             return (false, 0);
         }
         
@@ -113,22 +114,33 @@ contract RateLimiter is Ownable, Pausable, ReentrancyGuard {
         if (breaker.isActive && breaker.isOpen) {
             if (block.timestamp - breaker.lastFailureTime < breaker.recoveryTime) {
                 revert CircuitBreakerOpenError(limitId);
-            } else {
-                // Attempt recovery
-                breaker.isOpen = false;
-                breaker.failureCount = 0;
-                emit CircuitBreakerClosed(limitId);
             }
         }
         
         // Apply throttling
-        delay = calculateThrottleDelay(limitId, user);
+        delay = calculateThrottleDelayView(limitId, user);
         
+        return (true, delay);
+    }
+
+    /**
+     * @notice Record a request (call this after checkRateLimit returns true)
+     * @param limitId Unique identifier for the rate limit
+     * @param user Address of the user making the request
+     */
+    function recordRequest(bytes32 limitId, address user) external {
         // Update user request tracking
         userLastRequestTime[user] = block.timestamp;
         userRequestCount[user]++;
         
-        return (true, delay);
+        // Update specific rate limit
+        RateLimit storage limit = rateLimits[limitId];
+        if (limit.isActive) {
+            limit.currentRequests++;
+        }
+        
+        // Update throttling
+        updateThrottleDelay(limitId, user);
     }
 
     /**
@@ -369,6 +381,17 @@ contract RateLimiter is Ownable, Pausable, ReentrancyGuard {
         return true;
     }
 
+    function checkSpecificRateLimitView(bytes32 limitId, address user) internal view returns (bool) {
+        RateLimit storage limit = rateLimits[limitId];
+        
+        // Check if limit would be exceeded (without modifying state)
+        if (limit.currentRequests >= limit.maxRequests) {
+            return false;
+        }
+        
+        return true;
+    }
+
     function calculateThrottleDelay(bytes32 throttleId, address user) internal returns (uint256) {
         ThrottleConfig storage throttle = throttleConfigs[throttleId];
         if (!throttle.isActive) {
@@ -395,6 +418,40 @@ contract RateLimiter is Ownable, Pausable, ReentrancyGuard {
         
         emit ThrottleApplied(throttleId, user, remainingDelay);
         return remainingDelay;
+    }
+
+    function calculateThrottleDelayView(bytes32 throttleId, address user) internal view returns (uint256) {
+        ThrottleConfig storage throttle = throttleConfigs[throttleId];
+        if (!throttle.isActive) {
+            return 0;
+        }
+        
+        uint256 timeSinceLastRequest = block.timestamp - userLastRequestTime[user];
+        
+        // If enough time has passed, reset delay
+        if (timeSinceLastRequest >= throttle.currentDelay) {
+            return 0;
+        }
+        
+        // Calculate remaining delay (without modifying state)
+        uint256 remainingDelay = throttle.currentDelay - timeSinceLastRequest;
+        
+        return remainingDelay;
+    }
+
+    function updateThrottleDelay(bytes32 throttleId, address user) internal {
+        ThrottleConfig storage throttle = throttleConfigs[throttleId];
+        if (!throttle.isActive) {
+            return;
+        }
+        
+        // Apply exponential backoff
+        throttle.currentDelay = throttle.currentDelay * throttle.backoffMultiplier / 100;
+        if (throttle.currentDelay > throttle.maxDelay) {
+            throttle.currentDelay = throttle.maxDelay;
+        }
+        
+        emit ThrottleApplied(throttleId, user, throttle.currentDelay);
     }
 
     /**

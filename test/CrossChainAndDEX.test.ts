@@ -1,8 +1,8 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { CrossChainBridge } from "../typechain-types/contracts/bridges/CrossChainBridge";
-import { BalancerV2Integration } from "../typechain-types/contracts/dex/BalancerV2Integration";
-import { CurveFinanceIntegration } from "../typechain-types/contracts/dex/CurveFinanceIntegration";
+import { BalancerV2Integration } from "../typechain-types/contracts/dex/BalancerV2Integration.sol/BalancerV2Integration";
+import { CurveFinanceIntegration } from "../typechain-types/contracts/dex/CurveFinanceIntegration.sol/CurveFinanceIntegration";
 import { MockERC20 } from "../typechain-types/contracts/mocks/MockERC20";
 
 describe("Cross-Chain Bridge & DEX Integration Tests", function () {
@@ -82,19 +82,36 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       const amount = ethers.parseEther("5");
       const targetChainId = 137; // Polygon
       
-      // Approve tokens
-      await weth.approve(await crossChainBridge.getAddress(), amount);
+      // Calculate fee and total amount
+      const fee = await crossChainBridge.calculateFee(amount, targetChainId);
+      const totalAmount = amount + fee;
       
-      const requestId = await crossChainBridge.connect(user1).initiateTransfer(
-        user2.address,
-        await weth.getAddress(),
-        amount,
-        targetChainId
-      );
+      // Approve tokens from user1 (including fee)
+      await weth.connect(user1).approve(await crossChainBridge.getAddress(), totalAmount);
       
-      expect(requestId).to.be.gt(0);
-      
-      const request = await crossChainBridge.getTransferRequest(requestId);
+          const tx = await crossChainBridge.connect(user1).initiateTransfer(
+      user2.address,
+      await weth.getAddress(),
+      amount,
+      targetChainId
+    );
+    const receipt = await tx.wait();
+    expect(receipt?.status).to.equal(1);
+    
+    // Get the requestId from the event
+    const transferEvent = receipt?.logs.find(log => {
+      try {
+        const parsed = crossChainBridge.interface.parseLog(log);
+        return parsed?.name === 'TransferInitiated';
+      } catch {
+        return false;
+      }
+    });
+    expect(transferEvent).to.not.be.undefined;
+    const requestId = crossChainBridge.interface.parseLog(transferEvent!)?.args[0];
+    expect(requestId).to.be.gt(0);
+    
+    const request = await crossChainBridge.getTransferRequest(requestId);
       expect(request.sender).to.equal(user1.address);
       expect(request.recipient).to.equal(user2.address);
       expect(request.amount).to.equal(amount);
@@ -107,20 +124,37 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       
       // Test that relayer can execute transfers
       const amount = ethers.parseEther("1");
-      await weth.approve(await crossChainBridge.getAddress(), amount);
       
-      const requestId = await crossChainBridge.connect(user1).initiateTransfer(
-        user2.address,
-        await weth.getAddress(),
-        amount,
-        137
-      );
+      // Calculate fee and total amount
+      const fee = await crossChainBridge.calculateFee(amount, 137);
+      const totalAmount = amount + fee;
       
-      // Execute transfer as relayer
-      const proof = ethers.keccak256(ethers.toUtf8Bytes("test_proof"));
-      await crossChainBridge.connect(relayer).executeTransfer(requestId, proof);
+      await weth.connect(user1).approve(await crossChainBridge.getAddress(), totalAmount);
       
-      const request = await crossChainBridge.getTransferRequest(requestId);
+          const tx = await crossChainBridge.connect(user1).initiateTransfer(
+      user2.address,
+      await weth.getAddress(),
+      amount,
+      137
+    );
+    const receipt = await tx.wait();
+    
+    // Get the requestId from the event
+    const transferEvent = receipt?.logs.find(log => {
+      try {
+        const parsed = crossChainBridge.interface.parseLog(log);
+        return parsed?.name === 'TransferInitiated';
+      } catch {
+        return false;
+      }
+    });
+    const requestId = crossChainBridge.interface.parseLog(transferEvent!)?.args[0];
+    
+    // Execute transfer as relayer
+    const proof = ethers.keccak256(ethers.toUtf8Bytes("test_proof"));
+    await crossChainBridge.connect(relayer).executeTransfer(requestId, proof);
+    
+    const request = await crossChainBridge.getTransferRequest(requestId);
       expect(request.isExecuted).to.be.true;
     });
 
@@ -154,15 +188,19 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
 
   describe("Balancer V2 Integration", function () {
     it("should register pools", async function () {
+      // Deploy a mock weighted pool first
+      const MockWeightedPool = await ethers.getContractFactory("MockWeightedPool");
+      const mockPool = await MockWeightedPool.deploy();
+      await mockPool.waitForDeployment();
+      
       const poolId = ethers.keccak256(ethers.toUtf8Bytes("test_pool"));
-      const pool = ethers.Wallet.createRandom().address;
       const tokens = [await weth.getAddress(), await usdc.getAddress()];
       const weights = [5000, 5000]; // 50-50 weights
       
-      await balancerIntegration.registerPool(poolId, pool, tokens, weights);
+      await balancerIntegration.registerPool(poolId, await mockPool.getAddress(), tokens, weights);
       
       const poolInfo = await balancerIntegration.getPoolInfo(poolId);
-      expect(poolInfo.pool).to.equal(pool);
+      expect(poolInfo.pool).to.equal(await mockPool.getAddress());
       expect(poolInfo.isActive).to.be.true;
       expect(poolInfo.tokens).to.deep.equal(tokens);
       expect(poolInfo.weights).to.deep.equal(weights);
@@ -174,11 +212,13 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       
       // Test token authorization
       const poolId = ethers.keccak256(ethers.toUtf8Bytes("test_pool"));
-      const pool = ethers.Wallet.createRandom().address;
+      const MockWeightedPool = await ethers.getContractFactory("MockWeightedPool");
+      const mockPool = await MockWeightedPool.deploy();
+      await mockPool.waitForDeployment();
       const tokens = [await weth.getAddress(), await usdc.getAddress()];
       const weights = [5000, 5000];
       
-      await balancerIntegration.registerPool(poolId, pool, tokens, weights);
+      await balancerIntegration.registerPool(poolId, await mockPool.getAddress(), tokens, weights);
       
       // Should not revert due to token authorization
       expect(await balancerIntegration.getPoolTokens(poolId)).to.deep.equal(tokens);
@@ -186,11 +226,13 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
 
     it("should calculate optimal swap amounts", async function () {
       const poolId = ethers.keccak256(ethers.toUtf8Bytes("test_pool"));
-      const pool = ethers.Wallet.createRandom().address;
+      const MockWeightedPool = await ethers.getContractFactory("MockWeightedPool");
+      const mockPool = await MockWeightedPool.deploy();
+      await mockPool.waitForDeployment();
       const tokens = [await weth.getAddress(), await usdc.getAddress()];
       const weights = [5000, 5000];
       
-      await balancerIntegration.registerPool(poolId, pool, tokens, weights);
+      await balancerIntegration.registerPool(poolId, await mockPool.getAddress(), tokens, weights);
       
       const maxAmountIn = ethers.parseEther("10");
       const [optimalAmountIn, expectedAmountOut] = await balancerIntegration.calculateOptimalSwap(
@@ -214,33 +256,39 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
 
   describe("Curve Finance Integration", function () {
     it("should register Curve pools", async function () {
-      const pool = ethers.Wallet.createRandom().address;
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const mockPool = await MockCurvePool.deploy();
+      await mockPool.waitForDeployment();
       
-      await curveIntegration.registerPool(pool);
+      await curveIntegration.registerPool(await mockPool.getAddress());
       
-      const poolInfo = await curveIntegration.getPoolInfo(pool);
-      expect(poolInfo.pool).to.equal(pool);
+      const poolInfo = await curveIntegration.getPoolInfo(await mockPool.getAddress());
+      expect(poolInfo.pool).to.equal(await mockPool.getAddress());
       expect(poolInfo.isActive).to.be.true;
     });
 
     it("should authorize pools and tokens", async function () {
-      const pool = ethers.Wallet.createRandom().address;
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const mockPool = await MockCurvePool.deploy();
+      await mockPool.waitForDeployment();
       
-      await curveIntegration.authorizePool(pool);
+      await curveIntegration.authorizePool(await mockPool.getAddress());
       await curveIntegration.authorizeToken(await weth.getAddress());
       await curveIntegration.authorizeToken(await usdc.getAddress());
       
       // Test pool authorization
-      expect(await curveIntegration.getPoolCoins(pool)).to.be.an('array');
+      expect(await curveIntegration.getPoolCoins(await mockPool.getAddress())).to.be.an('array');
     });
 
     it("should calculate optimal swap amounts for Curve", async function () {
-      const pool = ethers.Wallet.createRandom().address;
-      await curveIntegration.authorizePool(pool);
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const mockPool = await MockCurvePool.deploy();
+      await mockPool.waitForDeployment();
+      await curveIntegration.registerPool(await mockPool.getAddress());
       
       const maxAmountIn = ethers.parseEther("10");
       const [optimalAmountIn, expectedAmountOut] = await curveIntegration.calculateOptimalSwap(
-        pool,
+        await mockPool.getAddress(),
         0, // i
         1, // j
         maxAmountIn
@@ -251,20 +299,24 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
     });
 
     it("should get pool liquidity depth", async function () {
-      const pool = ethers.Wallet.createRandom().address;
-      await curveIntegration.authorizePool(pool);
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const mockPool = await MockCurvePool.deploy();
+      await mockPool.waitForDeployment();
+      await curveIntegration.registerPool(await mockPool.getAddress());
       
-      const liquidity = await curveIntegration.getPoolLiquidity(pool, 0);
+      const liquidity = await curveIntegration.getPoolLiquidity(await mockPool.getAddress(), 0);
       expect(liquidity).to.be.gte(0);
     });
 
     it("should update pool balances", async function () {
-      const pool = ethers.Wallet.createRandom().address;
-      await curveIntegration.registerPool(pool);
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const mockPool = await MockCurvePool.deploy();
+      await mockPool.waitForDeployment();
+      await curveIntegration.registerPool(await mockPool.getAddress());
       
-      await curveIntegration.updatePoolBalances(pool);
+      await curveIntegration.updatePoolBalances(await mockPool.getAddress());
       
-      const poolInfo = await curveIntegration.getPoolInfo(pool);
+      const poolInfo = await curveIntegration.getPoolInfo(await mockPool.getAddress());
       expect(poolInfo.lastUpdate).to.be.gt(0);
     });
   });
@@ -276,28 +328,47 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       
       // Setup DEX integrations
       const balancerPoolId = ethers.keccak256(ethers.toUtf8Bytes("balancer_pool"));
-      const balancerPool = ethers.Wallet.createRandom().address;
+      const MockWeightedPool = await ethers.getContractFactory("MockWeightedPool");
+      const balancerPool = await MockWeightedPool.deploy();
+      await balancerPool.waitForDeployment();
       await balancerIntegration.registerPool(
         balancerPoolId,
-        balancerPool,
+        await balancerPool.getAddress(),
         [await weth.getAddress(), await usdc.getAddress()],
         [5000, 5000]
       );
       
-      const curvePool = ethers.Wallet.createRandom().address;
-      await curveIntegration.registerPool(curvePool);
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const curvePool = await MockCurvePool.deploy();
+      await curvePool.waitForDeployment();
+      await curveIntegration.registerPool(await curvePool.getAddress());
       
       // Simulate cross-chain arbitrage
       const amount = ethers.parseEther("5");
       
       // 1. Initiate cross-chain transfer
-      await weth.approve(await crossChainBridge.getAddress(), amount);
-      const requestId = await crossChainBridge.connect(user1).initiateTransfer(
+      const fee = await crossChainBridge.calculateFee(amount, 137);
+      const totalAmount = amount + fee;
+      await weth.connect(user1).approve(await crossChainBridge.getAddress(), totalAmount);
+      
+      const tx = await crossChainBridge.connect(user1).initiateTransfer(
         user1.address, // Same address on target chain
         await weth.getAddress(),
         amount,
         137 // Polygon
       );
+      const receipt = await tx.wait();
+      
+      // Get the requestId from the event
+      const transferEvent = receipt?.logs.find(log => {
+        try {
+          const parsed = crossChainBridge.interface.parseLog(log);
+          return parsed?.name === 'TransferInitiated';
+        } catch {
+          return false;
+        }
+      });
+      const requestId = crossChainBridge.interface.parseLog(transferEvent!)?.args[0];
       
       // 2. Execute transfer on target chain
       const proof = ethers.keccak256(ethers.toUtf8Bytes("arbitrage_proof"));
@@ -316,16 +387,20 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
     it("should handle multi-DEX arbitrage", async function () {
       // Setup multiple DEX pools
       const balancerPoolId = ethers.keccak256(ethers.toUtf8Bytes("balancer_pool"));
-      const balancerPool = ethers.Wallet.createRandom().address;
+      const MockWeightedPool = await ethers.getContractFactory("MockWeightedPool");
+      const balancerPool = await MockWeightedPool.deploy();
+      await balancerPool.waitForDeployment();
       await balancerIntegration.registerPool(
         balancerPoolId,
-        balancerPool,
+        await balancerPool.getAddress(),
         [await weth.getAddress(), await usdc.getAddress()],
         [5000, 5000]
       );
       
-      const curvePool = ethers.Wallet.createRandom().address;
-      await curveIntegration.registerPool(curvePool);
+      const MockCurvePool = await ethers.getContractFactory("MockCurvePool");
+      const curvePool = await MockCurvePool.deploy();
+      await curvePool.waitForDeployment();
+      await curveIntegration.registerPool(await curvePool.getAddress());
       
       // Simulate arbitrage between DEXes
       const amount = ethers.parseEther("2");
@@ -339,7 +414,7 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       );
       
       const [curveOptimal, curveExpected] = await curveIntegration.calculateOptimalSwap(
-        curvePool,
+        await curvePool.getAddress(),
         0, // WETH index
         1, // USDC index
         amount
@@ -371,12 +446,14 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       const pools = [];
       for (let i = 0; i < 5; i++) {
         const poolId = ethers.keccak256(ethers.toUtf8Bytes(`pool_${i}`));
-        const pool = ethers.Wallet.createRandom().address;
-        pools.push({ poolId, pool });
+        const MockWeightedPool = await ethers.getContractFactory("MockWeightedPool");
+        const pool = await MockWeightedPool.deploy();
+        await pool.waitForDeployment();
+        pools.push({ poolId, pool: await pool.getAddress() });
         
         await balancerIntegration.registerPool(
           poolId,
-          pool,
+          await pool.getAddress(),
           [await weth.getAddress(), await usdc.getAddress()],
           [5000, 5000]
         );
@@ -393,7 +470,7 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       );
       
       const results = await Promise.all(promises);
-      results.forEach(([optimalAmount, expectedAmount]) => {
+      results.forEach(([optimalAmount, expectedAmount]: [bigint, bigint]) => {
         expect(optimalAmount).to.be.gt(0);
         expect(expectedAmount).to.be.gte(0);
       });
@@ -403,18 +480,31 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       await crossChainBridge.authorizeRelayer(relayer.address);
       
       // Simulate multiple transfers
-      const transfers = [];
+      const transfers: bigint[] = [];
       for (let i = 0; i < 10; i++) {
         const amount = ethers.parseEther("0.1");
-        await weth.approve(await crossChainBridge.getAddress(), amount);
+        const fee = await crossChainBridge.calculateFee(amount, 137);
+        const totalAmount = amount + fee;
+        await weth.connect(user1).approve(await crossChainBridge.getAddress(), totalAmount);
         
-        const requestId = await crossChainBridge.connect(user1).initiateTransfer(
+        const tx = await crossChainBridge.connect(user1).initiateTransfer(
           user2.address,
           await weth.getAddress(),
           amount,
           137 // Polygon
         );
+        const receipt = await tx.wait();
         
+        // Get the requestId from the event
+        const transferEvent = receipt?.logs.find(log => {
+          try {
+            const parsed = crossChainBridge.interface.parseLog(log);
+            return parsed?.name === 'TransferInitiated';
+          } catch {
+            return false;
+          }
+        });
+        const requestId = crossChainBridge.interface.parseLog(transferEvent!)?.args[0];
         transfers.push(requestId);
       }
       

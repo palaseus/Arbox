@@ -81,34 +81,47 @@ describe("Simple Advanced Features Tests", function () {
   });
 
   describe("MEV Protection Basic Functionality", function () {
-    it("should submit transaction bundles", async function () {
-      const targetBlock = (await ethers.provider.getBlockNumber()) + 1;
-      const transactions = [
-        "0x1234567890abcdef", // Mock transaction data
-        "0xfedcba0987654321"
-      ];
-      const bribeAmount = ethers.parseEther("0.01");
+      it("should submit transaction bundles", async function () {
+    const targetBlock = (await ethers.provider.getBlockNumber()) + 5; // Use higher target block
+    const transactions = [
+      "0x1234567890abcdef", // Mock transaction data
+      "0xfedcba0987654321"
+    ];
+    const bribeAmount = ethers.parseEther("0.01");
 
-      const bundleHash = await mevProtector.submitBundle(targetBlock, transactions, bribeAmount);
-
-      const [bundleTargetBlock, bundleBribeAmount, isActive] = await mevProtector.getBundle(bundleHash);
-      expect(bundleTargetBlock).to.equal(targetBlock);
-      expect(bundleBribeAmount).to.equal(bribeAmount);
-      expect(isActive).to.be.true;
+    const tx = await mevProtector.submitBundle(targetBlock, transactions, bribeAmount);
+    const receipt = await tx.wait();
+    
+    // Get bundleHash from the BundleSubmitted event
+    const bundleEvent = receipt?.logs.find(log => {
+      try {
+        const parsed = mevProtector.interface.parseLog(log);
+        return parsed?.name === 'BundleSubmitted';
+      } catch {
+        return false;
+      }
     });
+    const bundleHash = mevProtector.interface.parseLog(bundleEvent!)?.args[0];
 
-    it("should protect against MEV attacks", async function () {
-      const target = await tokenA.getAddress();
-      const gasPrice = ethers.parseUnits("150", "gwei"); // High gas price
-      const slippage = 1000; // 10% slippage
+    const [bundleTargetBlock, bundleBribeAmount, isActive] = await mevProtector.getBundle(bundleHash);
+    expect(bundleTargetBlock).to.equal(targetBlock);
+    expect(bundleBribeAmount).to.equal(bribeAmount);
+    expect(isActive).to.be.true;
+  });
 
-      const isProtected = await mevProtector.protectAgainstMEV(target, gasPrice, slippage);
-      expect(isProtected).to.be.true;
-    });
+      it("should protect against MEV attacks", async function () {
+    const target = await tokenA.getAddress();
+    const gasPrice = ethers.parseUnits("150", "gwei"); // High gas price
+    const slippage = 1000; // 10% slippage
+
+    const tx = await mevProtector.protectAgainstMEV(target, gasPrice, slippage);
+    const receipt = await tx.wait();
+    expect(receipt?.status).to.equal(1);
+  });
 
     it("should detect and record attacks", async function () {
       const target = await tokenA.getAddress();
-      const gasPrice = ethers.parseUnits("200", "gwei"); // Very high gas price (attack)
+      const gasPrice = ethers.parseUnits("250", "gwei"); // Very high gas price (attack) - above 2x maxGasPrice
       const slippage = 500; // 5% slippage
 
       await mevProtector.protectAgainstMEV(target, gasPrice, slippage);
@@ -155,11 +168,12 @@ describe("Simple Advanced Features Tests", function () {
       
       // Use price data for MEV protection
       const target = await tokenA.getAddress();
-      const gasPrice = ethers.parseUnits("100", "gwei");
+      const gasPrice = ethers.parseUnits("150", "gwei"); // Above maxGasPrice to trigger attack
       const slippage = 500; // 5%
 
-      const isProtected = await mevProtector.protectAgainstMEV(target, gasPrice, slippage);
-      expect(isProtected).to.be.true;
+      const tx = await mevProtector.protectAgainstMEV(target, gasPrice, slippage);
+      const receipt = await tx.wait();
+      expect(receipt?.status).to.equal(1);
 
       // Verify protection was recorded
       const metrics = await mevProtector.getAttackMetrics(target);
