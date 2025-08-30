@@ -11,35 +11,35 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * @title CurveFinanceIntegration
  * @notice Integration with Curve Finance for arbitrage opportunities
  */
+// Curve Finance interfaces (simplified)
+interface ICurvePool {
+    function exchange(
+        int128 i,
+        int128 j,
+        uint256 dx,
+        uint256 min_dy
+    ) external returns (uint256);
+    
+    function get_dy(
+        int128 i,
+        int128 j,
+        uint256 dx
+    ) external view returns (uint256);
+    
+    function coins(uint256 i) external view returns (address);
+    function balances(uint256 i) external view returns (uint256);
+    function fee() external view returns (uint256);
+}
+
+interface ICurveRegistry {
+    function get_pool_from_lp_token(address lp_token) external view returns (address);
+    function get_lp_token(address pool) external view returns (address);
+    function get_n_coins(address pool) external view returns (uint256);
+    function get_coins(address pool) external view returns (address[8] memory);
+}
+
 contract CurveFinanceIntegration is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-
-    // Curve Finance interfaces (simplified)
-    interface ICurvePool {
-        function exchange(
-            int128 i,
-            int128 j,
-            uint256 dx,
-            uint256 min_dy
-        ) external returns (uint256);
-        
-        function get_dy(
-            int128 i,
-            int128 j,
-            uint256 dx
-        ) external view returns (uint256);
-        
-        function coins(uint256 i) external view returns (address);
-        function balances(uint256 i) external view returns (uint256);
-        function fee() external view returns (uint256);
-    }
-
-    interface ICurveRegistry {
-        function get_pool_from_lp_token(address lp_token) external view returns (address);
-        function get_lp_token(address pool) external view returns (address);
-        function get_n_coins(address pool) external view returns (uint256);
-        function get_coins(address pool) external view returns (address[8] memory);
-    }
 
     // State variables
     ICurveRegistry public curveRegistry;
@@ -126,7 +126,7 @@ contract CurveFinanceIntegration is Ownable, Pausable, ReentrancyGuard {
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         
         // Approve Curve pool
-        IERC20(tokenIn).safeApprove(pool, amountIn);
+        IERC20(tokenIn).approve(pool, amountIn);
         
         // Execute swap
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(msg.sender);

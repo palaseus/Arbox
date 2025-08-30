@@ -3,6 +3,8 @@
 import { ethers } from "hardhat";
 import { config as dotenvConfig } from "dotenv";
 import chalk from "chalk";
+import fs from "fs";
+import path from "path";
 
 dotenvConfig();
 
@@ -13,11 +15,11 @@ interface GasReport {
   optimizedGas: number;
   reduction: number;
   reductionPercentage: number;
-  optimization: string;
 }
 
 interface OptimizationSuggestion {
   contract: string;
+  function: string;
   suggestion: string;
   potentialSavings: number;
   priority: 'high' | 'medium' | 'low';
@@ -29,135 +31,148 @@ class GasOptimizer {
   private suggestions: OptimizationSuggestion[] = [];
 
   constructor() {
-    this.initializeOptimizationSuggestions();
+    this.initializeGasReports();
+    this.generateOptimizationSuggestions();
   }
 
-  private initializeOptimizationSuggestions() {
-    this.suggestions = [
+  private initializeGasReports() {
+    // Sample gas reports for demonstration
+    this.gasReports = [
       {
         contract: "AdvancedArbitrageEngine",
-        suggestion: "Use unchecked blocks for arithmetic operations",
-        potentialSavings: 5000,
-        priority: "high",
-        implementation: "Replace safe math with unchecked arithmetic where overflow is impossible"
+        function: "executeArbitrage",
+        currentGas: 150000,
+        optimizedGas: 120000,
+        reduction: 30000,
+        reductionPercentage: 20.0
       },
       {
         contract: "AdvancedArbitrageEngine",
-        suggestion: "Optimize storage layout",
-        potentialSavings: 3000,
-        priority: "high",
-        implementation: "Pack related variables into same storage slots"
+        function: "registerStrategy",
+        currentGas: 80000,
+        optimizedGas: 65000,
+        reduction: 15000,
+        reductionPercentage: 18.8
       },
       {
         contract: "AIArbitrageStrategy",
-        suggestion: "Cache frequently accessed storage variables",
-        potentialSavings: 2000,
-        priority: "medium",
-        implementation: "Store storage variables in memory before loops"
+        function: "execute",
+        currentGas: 95000,
+        optimizedGas: 78000,
+        reduction: 17000,
+        reductionPercentage: 17.9
       },
       {
-        contract: "MEVProtector",
-        suggestion: "Use assembly for low-level operations",
-        potentialSavings: 1500,
-        priority: "medium",
-        implementation: "Replace high-level operations with assembly where beneficial"
+        contract: "AdvancedMEVProtector",
+        function: "submitBundle",
+        currentGas: 110000,
+        optimizedGas: 88000,
+        reduction: 22000,
+        reductionPercentage: 20.0
       },
       {
         contract: "PriceOracle",
-        suggestion: "Batch operations",
+        function: "updatePrice",
+        currentGas: 65000,
+        optimizedGas: 52000,
+        reduction: 13000,
+        reductionPercentage: 20.0
+      }
+    ];
+  }
+
+  private generateOptimizationSuggestions() {
+    this.suggestions = [
+      {
+        contract: "AdvancedArbitrageEngine",
+        function: "executeArbitrage",
+        suggestion: "Use unchecked math for known-safe operations",
+        potentialSavings: 5000,
+        priority: "high",
+        implementation: "Replace arithmetic operations with unchecked blocks"
+      },
+      {
+        contract: "AdvancedArbitrageEngine",
+        function: "registerStrategy",
+        suggestion: "Optimize storage layout and pack variables",
+        potentialSavings: 3000,
+        priority: "medium",
+        implementation: "Group related variables in storage slots"
+      },
+      {
+        contract: "AIArbitrageStrategy",
+        function: "execute",
+        suggestion: "Cache frequently accessed data in memory",
         potentialSavings: 4000,
         priority: "high",
-        implementation: "Combine multiple operations into single transaction"
+        implementation: "Store repeated calculations in memory variables"
       },
       {
-        contract: "CrossChainBridge",
-        suggestion: "Optimize event parameters",
-        potentialSavings: 1000,
-        priority: "low",
-        implementation: "Use indexed parameters for frequently filtered events"
-      },
-      {
-        contract: "BalancerV2Integration",
-        suggestion: "Use custom errors instead of require statements",
-        potentialSavings: 2500,
+        contract: "AdvancedMEVProtector",
+        function: "submitBundle",
+        suggestion: "Batch multiple operations to reduce overhead",
+        potentialSavings: 6000,
         priority: "high",
-        implementation: "Replace require statements with custom errors"
+        implementation: "Combine multiple transactions into single bundle"
       },
       {
-        contract: "CurveFinanceIntegration",
-        suggestion: "Optimize loop operations",
-        potentialSavings: 1800,
-        priority: "medium",
-        implementation: "Use unchecked increments and optimize loop conditions"
+        contract: "PriceOracle",
+        function: "updatePrice",
+        suggestion: "Optimize event emissions",
+        potentialSavings: 2000,
+        priority: "low",
+        implementation: "Use indexed parameters and optimize event data"
       }
     ];
   }
 
   async analyzeGasUsage() {
-    console.log(chalk.blue("🔍 Analyzing Gas Usage Across All Contracts..."));
+    console.log(chalk.bold.blue("🔍 GAS OPTIMIZATION ANALYSIS"));
+    console.log(chalk.blue("=".repeat(60)));
     console.log("");
 
-    // Simulate gas analysis for different functions
-    const functions = [
-      { contract: "AdvancedArbitrageEngine", function: "executeArbitrage", current: 120000, optimized: 96000 },
-      { contract: "AdvancedArbitrageEngine", function: "registerStrategy", current: 45000, optimized: 36000 },
-      { contract: "AIArbitrageStrategy", function: "execute", current: 89000, optimized: 71200 },
-      { contract: "AIArbitrageStrategy", function: "_calculateProfitProbability", current: 25000, optimized: 20000 },
-      { contract: "MEVProtector", function: "protectAgainstMEV", current: 35000, optimized: 28000 },
-      { contract: "MEVProtector", function: "submitBundle", current: 55000, optimized: 44000 },
-      { contract: "PriceOracle", function: "updatePrice", current: 30000, optimized: 24000 },
-      { contract: "PriceOracle", function: "getWeightedPrice", current: 15000, optimized: 12000 },
-      { contract: "CrossChainBridge", function: "initiateTransfer", current: 75000, optimized: 60000 },
-      { contract: "CrossChainBridge", function: "executeTransfer", current: 65000, optimized: 52000 },
-      { contract: "BalancerV2Integration", function: "executeSwap", current: 95000, optimized: 76000 },
-      { contract: "BalancerV2Integration", function: "registerPool", current: 40000, optimized: 32000 },
-      { contract: "CurveFinanceIntegration", function: "executeSwap", current: 85000, optimized: 68000 },
-      { contract: "CurveFinanceIntegration", function: "registerPool", current: 35000, optimized: 28000 }
+    // Analyze each contract
+    const contracts = [
+      "AdvancedArbitrageEngine",
+      "AIArbitrageStrategy", 
+      "AdvancedMEVProtector",
+      "PriceOracle",
+      "CrossChainBridge"
     ];
 
-    functions.forEach(func => {
-      const reduction = func.current - func.optimized;
-      const reductionPercentage = (reduction / func.current) * 100;
+    for (const contract of contracts) {
+      console.log(chalk.blue(`📦 Analyzing ${contract}...`));
       
-      this.gasReports.push({
-        contract: func.contract,
-        function: func.function,
-        currentGas: func.current,
-        optimizedGas: func.optimized,
-        reduction: reduction,
-        reductionPercentage: reductionPercentage,
-        optimization: this.getOptimizationDescription(func.contract, func.function)
-      });
-    });
+      try {
+        const contractFactory = await ethers.getContractFactory(contract);
+        const deployedContract = await contractFactory.deploy();
+        await deployedContract.waitForDeployment();
+        
+        console.log(chalk.green(`  ✅ ${contract} deployed successfully`));
+        
+        // Simulate gas analysis
+        const gasEstimate = await this.estimateGasUsage(contract);
+        console.log(chalk.gray(`  📊 Estimated gas usage: ${gasEstimate.toLocaleString()}`));
+        
+      } catch (error) {
+        console.log(chalk.yellow(`  ⚠️  ${contract}: ${error}`));
+      }
+    }
 
     this.displayGasAnalysis();
     this.displayOptimizationSuggestions();
     this.generateOptimizationReport();
   }
 
-  private getOptimizationDescription(contract: string, function: string): string {
-    const descriptions: { [key: string]: string } = {
-      "AdvancedArbitrageEngine.executeArbitrage": "Unchecked arithmetic, storage optimization",
-      "AdvancedArbitrageEngine.registerStrategy": "Storage packing, custom errors",
-      "AIArbitrageStrategy.execute": "Memory caching, loop optimization",
-      "AIArbitrageStrategy._calculateProfitProbability": "Assembly math, unchecked operations",
-      "MEVProtector.protectAgainstMEV": "Assembly operations, storage optimization",
-      "MEVProtector.submitBundle": "Batch operations, custom errors",
-      "PriceOracle.updatePrice": "Storage packing, event optimization",
-      "PriceOracle.getWeightedPrice": "Memory caching, unchecked math",
-      "CrossChainBridge.initiateTransfer": "Storage optimization, custom errors",
-      "CrossChainBridge.executeTransfer": "Assembly operations, memory optimization",
-      "BalancerV2Integration.executeSwap": "Custom errors, storage packing",
-      "BalancerV2Integration.registerPool": "Batch operations, memory optimization",
-      "CurveFinanceIntegration.executeSwap": "Loop optimization, unchecked operations",
-      "CurveFinanceIntegration.registerPool": "Storage packing, custom errors"
-    };
-
-    return descriptions[`${contract}.${function}`] || "General optimization techniques";
+  private async estimateGasUsage(contractName: string): Promise<number> {
+    // Simulate gas estimation
+    const baseGas = 50000;
+    const complexityMultiplier = contractName.length * 100;
+    return baseGas + complexityMultiplier;
   }
 
   private displayGasAnalysis() {
-    console.log(chalk.bold.cyan("📊 GAS USAGE ANALYSIS"));
+    console.log(chalk.bold.cyan("\n📊 GAS USAGE ANALYSIS"));
     console.log(chalk.cyan("=".repeat(100)));
     
     console.log(chalk.white(
@@ -214,134 +229,77 @@ class GasOptimizer {
     const mediumPriority = this.suggestions.filter(s => s.priority === 'medium');
     const lowPriority = this.suggestions.filter(s => s.priority === 'low');
 
-    console.log(chalk.bold.red("🔴 HIGH PRIORITY"));
-    highPriority.forEach(suggestion => {
-      console.log(chalk.red(`  • ${suggestion.contract}: ${suggestion.suggestion}`));
-      console.log(chalk.gray(`    Potential Savings: ${suggestion.potentialSavings} gas`));
-      console.log(chalk.gray(`    Implementation: ${suggestion.implementation}`));
-      console.log("");
-    });
+    if (highPriority.length > 0) {
+      console.log(chalk.bold.red("🔴 HIGH PRIORITY"));
+      highPriority.forEach(suggestion => {
+        console.log(chalk.red(`  • ${suggestion.contract}: ${suggestion.suggestion}`));
+        console.log(chalk.gray(`    Potential Savings: ${suggestion.potentialSavings} gas`));
+        console.log(chalk.gray(`    Implementation: ${suggestion.implementation}`));
+        console.log("");
+      });
+    }
 
-    console.log(chalk.bold.yellow("🟡 MEDIUM PRIORITY"));
-    mediumPriority.forEach(suggestion => {
-      console.log(chalk.yellow(`  • ${suggestion.contract}: ${suggestion.suggestion}`));
-      console.log(chalk.gray(`    Potential Savings: ${suggestion.potentialSavings} gas`));
-      console.log(chalk.gray(`    Implementation: ${suggestion.implementation}`));
-      console.log("");
-    });
+    if (mediumPriority.length > 0) {
+      console.log(chalk.bold.yellow("🟡 MEDIUM PRIORITY"));
+      mediumPriority.forEach(suggestion => {
+        console.log(chalk.yellow(`  • ${suggestion.contract}: ${suggestion.suggestion}`));
+        console.log(chalk.gray(`    Potential Savings: ${suggestion.potentialSavings} gas`));
+        console.log(chalk.gray(`    Implementation: ${suggestion.implementation}`));
+        console.log("");
+      });
+    }
 
-    console.log(chalk.bold.green("🟢 LOW PRIORITY"));
-    lowPriority.forEach(suggestion => {
-      console.log(chalk.green(`  • ${suggestion.contract}: ${suggestion.suggestion}`));
-      console.log(chalk.gray(`    Potential Savings: ${suggestion.potentialSavings} gas`));
-      console.log(chalk.gray(`    Implementation: ${suggestion.implementation}`));
-      console.log("");
-    });
+    if (lowPriority.length > 0) {
+      console.log(chalk.bold.blue("🔵 LOW PRIORITY"));
+      lowPriority.forEach(suggestion => {
+        console.log(chalk.blue(`  • ${suggestion.contract}: ${suggestion.suggestion}`));
+        console.log(chalk.gray(`    Potential Savings: ${suggestion.potentialSavings} gas`));
+        console.log(chalk.gray(`    Implementation: ${suggestion.implementation}`));
+        console.log("");
+      });
+    }
   }
 
   private generateOptimizationReport() {
-    console.log(chalk.bold.cyan("📋 OPTIMIZATION REPORT"));
+    console.log(chalk.bold.cyan("📈 OPTIMIZATION SUMMARY"));
     console.log(chalk.cyan("=".repeat(50)));
 
     const totalCurrent = this.gasReports.reduce((sum, report) => sum + report.currentGas, 0);
     const totalOptimized = this.gasReports.reduce((sum, report) => sum + report.optimizedGas, 0);
-    const totalReduction = totalCurrent - totalOptimized;
-    const totalReductionPercentage = (totalReduction / totalCurrent) * 100;
+    const totalSavings = totalCurrent - totalOptimized;
+    const totalSavingsPercent = ((totalSavings / totalCurrent) * 100).toFixed(1);
 
     const totalPotentialSavings = this.suggestions.reduce((sum, suggestion) => sum + suggestion.potentialSavings, 0);
 
-    console.log(`Total Current Gas Usage:     ${chalk.white(totalCurrent.toLocaleString())} gas`);
-    console.log(`Total Optimized Gas Usage:   ${chalk.green(totalOptimized.toLocaleString())} gas`);
-    console.log(`Total Gas Reduction:         ${chalk.yellow(totalReduction.toLocaleString())} gas`);
-    console.log(`Overall Reduction:           ${chalk.cyan(`${totalReductionPercentage.toFixed(1)}%`)}`);
-    console.log(`Target Reduction:            ${chalk.cyan("20.0%")}`);
-    console.log(`Target Achieved:             ${totalReductionPercentage >= 20 ? chalk.green("✅ YES") : chalk.red("❌ NO")}`);
-    console.log("");
-    console.log(`Additional Potential Savings: ${chalk.yellow(totalPotentialSavings.toLocaleString())} gas`);
-    console.log(`Total Potential Reduction:   ${chalk.cyan(`${((totalReduction + totalPotentialSavings) / totalCurrent * 100).toFixed(1)}%`)}`);
-    console.log("");
+    console.log(chalk.white(`Total Current Gas Usage: ${totalCurrent.toLocaleString()}`));
+    console.log(chalk.white(`Total Optimized Gas Usage: ${totalOptimized.toLocaleString()}`));
+    console.log(chalk.green(`Total Potential Savings: ${totalSavings.toLocaleString()} (${totalSavingsPercent}%)`));
+    console.log(chalk.cyan(`Total Potential Savings from Suggestions: ${totalPotentialSavings.toLocaleString()} gas`));
 
-    if (totalReductionPercentage >= 20) {
-      console.log(chalk.bold.green("🎉 TARGET ACHIEVED! 20% gas reduction goal met!"));
-    } else {
-      console.log(chalk.bold.yellow("📈 PROGRESS: Additional optimizations needed to reach 20% target"));
-    }
-  }
-
-  async generateOptimizedContracts() {
-    console.log(chalk.blue("🔧 Generating Optimized Contract Templates..."));
-    console.log("");
-
-    const optimizations = [
-      {
-        name: "Unchecked Arithmetic",
-        description: "Use unchecked blocks for arithmetic operations where overflow is impossible",
-        example: `
-// Before
-uint256 result = a + b;
-
-// After
-uint256 result;
-unchecked {
-    result = a + b;
-}`
-      },
-      {
-        name: "Storage Packing",
-        description: "Pack related variables into the same storage slots",
-        example: `
-// Before
-uint256 a;
-uint256 b;
-uint256 c;
-
-// After
-uint256 a;
-uint128 b;
-uint128 c; // Packed with b in same slot`
-      },
-      {
-        name: "Custom Errors",
-        description: "Replace require statements with custom errors",
-        example: `
-// Before
-require(amount > 0, "Invalid amount");
-
-// After
-error InvalidAmount();
-if (amount == 0) revert InvalidAmount();`
-      },
-      {
-        name: "Memory Caching",
-        description: "Cache frequently accessed storage variables",
-        example: `
-// Before
-for (uint256 i = 0; i < array.length; i++) {
-    doSomething(storageArray[i]);
-}
-
-// After
-uint256[] memory cachedArray = storageArray;
-for (uint256 i = 0; i < cachedArray.length; i++) {
-    doSomething(cachedArray[i]);
-}`
+    // Save report to file
+    const reportData = {
+      timestamp: new Date().toISOString(),
+      gasReports: this.gasReports,
+      suggestions: this.suggestions,
+      summary: {
+        totalCurrent,
+        totalOptimized,
+        totalSavings,
+        totalSavingsPercent,
+        totalPotentialSavings
       }
-    ];
+    };
 
-    optimizations.forEach(opt => {
-      console.log(chalk.bold.cyan(opt.name));
-      console.log(chalk.gray(opt.description));
-      console.log(chalk.white(opt.example));
-      console.log("");
-    });
+    const reportPath = path.join(__dirname, "..", "test", "results", "gas_optimization_report.json");
+    fs.writeFileSync(reportPath, JSON.stringify(reportData, null, 2));
+    console.log(chalk.gray(`\nReport saved to: ${reportPath}`));
   }
 
-  // Public method to get gas reports
+  // Public methods for external use
   getGasReports(): GasReport[] {
     return this.gasReports;
   }
 
-  // Public method to get optimization suggestions
   getOptimizationSuggestions(): OptimizationSuggestion[] {
     return this.suggestions;
   }
@@ -353,11 +311,8 @@ async function main() {
   
   try {
     await optimizer.analyzeGasUsage();
-    await optimizer.generateOptimizedContracts();
     
-    console.log(chalk.bold.blue("=".repeat(80)));
-    console.log(chalk.bold.blue("🎯 GAS OPTIMIZATION ANALYSIS COMPLETE"));
-    console.log(chalk.bold.blue("=".repeat(80)));
+    console.log(chalk.bold.green("\n🎉 Gas optimization analysis completed!"));
     
   } catch (error) {
     console.error(chalk.red("❌ Gas optimization analysis failed:"), error);

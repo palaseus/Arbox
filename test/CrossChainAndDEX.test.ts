@@ -383,7 +383,7 @@ describe("Cross-Chain Bridge & DEX Integration Tests", function () {
       }
       
       // Simulate concurrent queries
-      const promises = pools.map(({ poolId }) =>
+      const promises = pools.map(async ({ poolId }) =>
         balancerIntegration.calculateOptimalSwap(
           poolId,
           await weth.getAddress(),

@@ -11,58 +11,58 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * @title BalancerV2Integration
  * @notice Integration with Balancer V2 for arbitrage opportunities
  */
+// Balancer V2 data structures
+struct SingleSwap {
+    bytes32 poolId;
+    SwapKind kind;
+    address assetIn;
+    address assetOut;
+    uint256 amount;
+    bytes userData;
+}
+
+struct FundManagement {
+    address sender;
+    bool fromInternalBalance;
+    address payable recipient;
+    bool toInternalBalance;
+}
+
+struct BatchSwapStep {
+    bytes32 poolId;
+    uint256 assetInIndex;
+    uint256 assetOutIndex;
+    uint256 amount;
+    bytes userData;
+}
+
+enum SwapKind { GIVEN_IN, GIVEN_OUT }
+
+// Balancer V2 interfaces (simplified)
+interface IVault {
+    function swap(
+        SingleSwap memory singleSwap,
+        FundManagement memory funds,
+        uint256 limit,
+        uint256 deadline
+    ) external payable returns (uint256 amountCalculated);
+    
+    function queryBatchSwap(
+        SwapKind kind,
+        BatchSwapStep[] memory swaps,
+        address[] memory assets,
+        FundManagement memory funds
+    ) external returns (int256[] memory);
+}
+
+interface IWeightedPool {
+    function getNormalizedWeights() external view returns (uint256[] memory);
+    function getRate() external view returns (uint256);
+    function getSwapFeePercentage() external view returns (uint256);
+}
+
 contract BalancerV2Integration is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-
-    // Balancer V2 interfaces (simplified)
-    interface IVault {
-        function swap(
-            SingleSwap memory singleSwap,
-            FundManagement memory funds,
-            uint256 limit,
-            uint256 deadline
-        ) external payable returns (uint256 amountCalculated);
-        
-        function queryBatchSwap(
-            SwapKind kind,
-            BatchSwapStep[] memory swaps,
-            address[] memory assets,
-            FundManagement memory funds
-        ) external returns (int256[] memory);
-    }
-
-    interface IWeightedPool {
-        function getNormalizedWeights() external view returns (uint256[] memory);
-        function getRate() external view returns (uint256);
-        function getSwapFeePercentage() external view returns (uint256);
-    }
-
-    // Balancer V2 data structures
-    struct SingleSwap {
-        bytes32 poolId;
-        SwapKind kind;
-        address assetIn;
-        address assetOut;
-        uint256 amount;
-        bytes userData;
-    }
-
-    struct FundManagement {
-        address sender;
-        bool fromInternalBalance;
-        address payable recipient;
-        bool toInternalBalance;
-    }
-
-    struct BatchSwapStep {
-        bytes32 poolId;
-        uint256 assetInIndex;
-        uint256 assetOutIndex;
-        uint256 amount;
-        bytes userData;
-    }
-
-    enum SwapKind { GIVEN_IN, GIVEN_OUT }
 
     // State variables
     IVault public balancerVault;
@@ -139,7 +139,7 @@ contract BalancerV2Integration is Ownable, Pausable, ReentrancyGuard {
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         
         // Approve Balancer Vault
-        IERC20(tokenIn).safeApprove(address(balancerVault), amountIn);
+        IERC20(tokenIn).approve(address(balancerVault), amountIn);
         
         // Create swap parameters
         SingleSwap memory singleSwap = SingleSwap({
@@ -198,7 +198,7 @@ contract BalancerV2Integration is Ownable, Pausable, ReentrancyGuard {
         address tokenIn,
         address tokenOut,
         uint256 amountIn
-    ) external view returns (uint256 amountOut) {
+    ) external returns (uint256 amountOut) {
         require(poolInfo[poolId].isActive, "Pool not active");
         
         // Create batch swap for query
@@ -357,7 +357,7 @@ contract BalancerV2Integration is Ownable, Pausable, ReentrancyGuard {
         address tokenIn,
         address tokenOut,
         uint256 maxAmountIn
-    ) external view returns (uint256 optimalAmountIn, uint256 expectedAmountOut) {
+    ) external returns (uint256 optimalAmountIn, uint256 expectedAmountOut) {
         require(poolInfo[poolId].isActive, "Pool not active");
         
         // Simple optimal amount calculation (50% of max amount)
