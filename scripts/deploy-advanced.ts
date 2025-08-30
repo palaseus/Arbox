@@ -34,8 +34,10 @@ class AdvancedArbitrageDeployer {
    */
   async deploy(): Promise<DeployedContracts> {
     console.log("🚀 Starting Advanced Arbitrage Engine deployment...");
-    console.log("Network:", await this.hre.ethers.provider.getNetwork());
-    console.log("Deployer:", await this.hre.ethers.provider.getSigner().getAddress());
+    const network = await this.hre.ethers.provider.getNetwork();
+    const deployer = await this.hre.ethers.provider.getSigner();
+    console.log("Network:", network);
+    console.log("Deployer:", await deployer.getAddress());
     console.log("Gas Price:", this.config.gasPrice);
     console.log("Gas Limit:", this.config.gasLimit);
     console.log("");
@@ -44,43 +46,46 @@ class AdvancedArbitrageDeployer {
       // Deploy MEV Protector
       console.log("📦 Deploying MEV Protector...");
       const mevProtector = await this.deployMEVProtector();
-      console.log("✅ MEV Protector deployed at:", mevProtector.address);
+      const mevProtectorAddress = await mevProtector.getAddress();
+      console.log("✅ MEV Protector deployed at:", mevProtectorAddress);
       console.log("   Transaction hash:", mevProtector.deploymentTransaction()?.hash);
       console.log("");
 
       // Deploy AI Strategy
       console.log("🤖 Deploying AI Arbitrage Strategy...");
       const aiStrategy = await this.deployAIStrategy();
-      console.log("✅ AI Strategy deployed at:", aiStrategy.address);
+      const aiStrategyAddress = await aiStrategy.getAddress();
+      console.log("✅ AI Strategy deployed at:", aiStrategyAddress);
       console.log("   Transaction hash:", aiStrategy.deploymentTransaction()?.hash);
       console.log("");
 
       // Deploy Advanced Arbitrage Engine
       console.log("⚡ Deploying Advanced Arbitrage Engine...");
-      const advancedEngine = await this.deployAdvancedEngine(mevProtector.address);
-      console.log("✅ Advanced Engine deployed at:", advancedEngine.address);
+      const advancedEngine = await this.deployAdvancedEngine(mevProtectorAddress);
+      const advancedEngineAddress = await advancedEngine.getAddress();
+      console.log("✅ Advanced Engine deployed at:", advancedEngineAddress);
       console.log("   Transaction hash:", advancedEngine.deploymentTransaction()?.hash);
       console.log("");
 
       // Setup initial configuration
       console.log("⚙️  Setting up initial configuration...");
-      await this.setupInitialConfig(advancedEngine, aiStrategy);
+      await this.setupInitialConfig(advancedEngine, aiStrategy, mevProtectorAddress, aiStrategyAddress);
       console.log("✅ Initial configuration complete");
       console.log("");
 
       // Verify contracts (if on supported network)
       if (await this.shouldVerifyContracts()) {
         console.log("🔍 Verifying contracts on Etherscan...");
-        await this.verifyContracts(mevProtector.address, aiStrategy.address, advancedEngine.address);
+        await this.verifyContracts(mevProtectorAddress, aiStrategyAddress, advancedEngineAddress);
         console.log("✅ Contract verification complete");
         console.log("");
       }
 
       // Generate deployment summary
       const deploymentSummary = await this.generateDeploymentSummary(
-        mevProtector.address,
-        aiStrategy.address,
-        advancedEngine.address
+        mevProtectorAddress,
+        aiStrategyAddress,
+        advancedEngineAddress
       );
 
       console.log("📋 DEPLOYMENT SUMMARY");
@@ -88,9 +93,9 @@ class AdvancedArbitrageDeployer {
       console.log(deploymentSummary);
 
       return {
-        mevProtector: mevProtector.address,
-        aiStrategy: aiStrategy.address,
-        advancedEngine: advancedEngine.address,
+        mevProtector: mevProtectorAddress,
+        aiStrategy: aiStrategyAddress,
+        advancedEngine: advancedEngineAddress,
         deploymentHash: advancedEngine.deploymentTransaction()?.hash || ""
       };
 
@@ -146,7 +151,7 @@ class AdvancedArbitrageDeployer {
   /**
    * Setup initial configuration for the advanced engine
    */
-  private async setupInitialConfig(advancedEngine: any, aiStrategy: any) {
+  private async setupInitialConfig(advancedEngine: any, aiStrategy: any, mevProtectorAddress: string, aiStrategyAddress: string) {
     const [deployer] = await this.hre.ethers.getSigners();
     
     // Grant roles to specified addresses
@@ -183,7 +188,7 @@ class AdvancedArbitrageDeployer {
       avgProfit: 0
     };
 
-    await advancedEngine.addStrategy(strategyId, aiStrategy.address, strategyConfig);
+    await advancedEngine.addStrategy(strategyId, aiStrategyAddress, strategyConfig);
     console.log("   Added AI Strategy with ID:", strategyId);
   }
 
@@ -233,11 +238,11 @@ class AdvancedArbitrageDeployer {
    */
   private async generateDeploymentSummary(mevProtectorAddress: string, aiStrategyAddress: string, advancedEngineAddress: string): Promise<string> {
     const network = await this.hre.ethers.provider.getNetwork();
-    const [deployer] = await this.hre.ethers.getSigner();
+    const [deployer] = await this.hre.ethers.getSigners();
     
     return `
 Network: ${network.name} (Chain ID: ${network.chainId})
-Deployer: ${deployer.address}
+Deployer: ${await deployer.getAddress()}
 Deployment Time: ${new Date().toISOString()}
 
 Contracts Deployed:

@@ -2,6 +2,7 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ethers";
 import "@nomicfoundation/hardhat-chai-matchers";
+import "@nomicfoundation/hardhat-verify";
 import "@typechain/hardhat";
 import "@typechain/ethers-v6";
 import "dotenv/config";
@@ -36,7 +37,7 @@ const config: HardhatUserConfig = {
       chainId: 11155111,
     },
     mumbai: {
-      url: process.env.MUMBAI_RPC_URL || "https://polygon-mumbai.infura.io/v3/your-project-id",
+      url: process.env.MUMBAI_RPC_URL || "https://polygon-mumbai.blockpi.network/v1/rpc/public",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 80001,
     },

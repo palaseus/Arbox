@@ -2,7 +2,11 @@
 
 import { ethers } from "ethers";
 import { config as dotenvConfig } from "dotenv";
-import chalk from "chalk";
+// Dynamic import for chalk to avoid ESM issues
+let chalk: any;
+import("chalk").then(chalkModule => {
+  chalk = chalkModule.default;
+});
 import { table } from "table";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { task } from "hardhat/config";
