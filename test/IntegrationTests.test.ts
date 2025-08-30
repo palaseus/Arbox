@@ -64,6 +64,7 @@ describe("Integration Tests", function () {
     await flashLoanArbitrage.whitelistToken(await tokenA.getAddress());
     await flashLoanArbitrage.whitelistToken(await tokenB.getAddress());
     await flashLoanArbitrage.whitelistToken(await tokenC.getAddress());
+    await flashLoanArbitrage.setTestBypassEntryPoint(true);
 
     // Mint tokens for testing
     await tokenA.mint(await advancedArbitrageEngine.getAddress(), ethers.parseEther("1000"));
@@ -72,6 +73,9 @@ describe("Integration Tests", function () {
     await tokenA.mint(await aavePool.getAddress(), ethers.parseEther("10000"));
     await tokenB.mint(await aavePool.getAddress(), ethers.parseEther("10000"));
     await tokenC.mint(await aavePool.getAddress(), ethers.parseEther("10000"));
+    await tokenA.mint(await flashLoanArbitrage.getAddress(), ethers.parseEther("1000"));
+    await tokenB.mint(await flashLoanArbitrage.getAddress(), ethers.parseEther("1000"));
+    await tokenC.mint(await flashLoanArbitrage.getAddress(), ethers.parseEther("1000"));
   });
 
   describe("End-to-End Arbitrage Flows", function () {
@@ -159,7 +163,7 @@ describe("Integration Tests", function () {
         await tokenA.getAddress(),
         ethers.parseEther("10"),
         routes,
-        ethers.parseEther("0.1")
+        ethers.parseEther("1.0")
       );
 
       const finalBalance = await tokenA.balanceOf(await owner.getAddress());

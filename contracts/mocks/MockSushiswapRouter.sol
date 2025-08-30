@@ -8,9 +8,24 @@ contract MockSushiswapRouter {
     using SafeERC20 for IERC20;
 
     mapping(address => mapping(address => uint256[2])) public reserves;
+    mapping(address => mapping(address => uint256)) public priceRatios;
+    bool public shouldFail;
 
     // Mock fee rate (0.3%)
     uint256 private constant FEE_RATE = 30;
+
+    function setPriceRatio(address tokenIn, address tokenOut, uint256 ratio) external {
+        priceRatios[tokenIn][tokenOut] = ratio;
+    }
+
+    function setShouldFail(bool fail) external {
+        shouldFail = fail;
+    }
+
+    function setLiquidity(address tokenA, address tokenB, uint256 amountA, uint256 amountB) external {
+        reserves[tokenA][tokenB][0] = amountA;
+        reserves[tokenA][tokenB][1] = amountB;
+    }
 
     function addLiquidity(
         address tokenA,
@@ -24,7 +39,8 @@ contract MockSushiswapRouter {
 
     
 
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public pure returns (uint256) {
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public view returns (uint256) {
+        if (shouldFail) revert("Mock router failure");
         if (amountIn == 0 || reserveIn == 0 || reserveOut == 0) return 0;
         uint256 amountInWithFee = amountIn * 997;
         uint256 numerator = amountInWithFee * reserveOut;
@@ -39,6 +55,7 @@ contract MockSushiswapRouter {
         uint256 amountIn,
         uint256 amountOutMinimum
     ) external returns (uint256 amountOut) {
+        if (shouldFail) revert("Mock router failure");
         require(deadline >= block.timestamp, "Expired");
         
         // Decode path
@@ -47,7 +64,14 @@ contract MockSushiswapRouter {
         // Calculate amount out
         uint256 reserveIn = reserves[tokenIn][tokenOut][0];
         uint256 reserveOut = reserves[tokenIn][tokenOut][1];
-        amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
+        
+        // Use price ratio if set, otherwise use reserves
+        if (priceRatios[tokenIn][tokenOut] > 0) {
+            amountOut = (amountIn * priceRatios[tokenIn][tokenOut]) / 1e18;
+        } else {
+            amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
+        }
+        
         require(amountOut >= amountOutMinimum, "Insufficient output amount");
         
         // Transfer tokens
@@ -68,6 +92,7 @@ contract MockSushiswapRouter {
         address to,
         uint256 deadline
     ) external returns (uint256[] memory amounts) {
+        if (shouldFail) revert("Mock router failure");
         require(deadline >= block.timestamp, "Expired");
         require(path.length >= 2, "Invalid path");
         
