@@ -149,7 +149,7 @@ describe("Fuzzing Tests", function () {
     });
 
     it("should handle extreme fee values", async function () {
-      const extremeFees = [0, 1, 10000, 1000000, 4294967295]; // uint24 max
+      const extremeFees = [0, 1, 10000, 1000000, 16777215]; // uint24 max (2^24 - 1)
 
       for (const fee of extremeFees) {
         const routes = [
@@ -176,7 +176,7 @@ describe("Fuzzing Tests", function () {
               routes,
               ethers.parseEther("0.01")
             );
-          } catch (error) {
+          } catch (error: any) {
             // Expected to fail due to insufficient profit, but not due to invalid fee
             expect(error.message).to.not.include("Invalid fee");
           }
@@ -599,10 +599,13 @@ describe("Fuzzing Tests", function () {
               routes,
               ethers.parseEther("0.01")
             );
-          } catch (error) {
+          } catch (error: any) {
             // Expected to fail due to insufficient profit, but should not crash
             expect(error.message).to.not.include("panic");
-            expect(error.message).to.not.include("revert");
+            // Allow revert but check for specific error types
+            if (error.message.includes("revert")) {
+              expect(error.message).to.include("Insufficient profit");
+            }
           }
         }
       }

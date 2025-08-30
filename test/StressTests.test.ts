@@ -259,8 +259,8 @@ describe("Stress Tests", function () {
       // Setup price ratios for profitable arbitrage
       await uniswapRouter.setPriceRatio(await tokenA.getAddress(), await tokenB.getAddress(), 100);
       await sushiswapRouter.setPriceRatio(await tokenB.getAddress(), await tokenC.getAddress(), 50);
-      await uniswapRouter.setPriceRatio(await tokenC.getAddress(), await tokenB.getAddress(), 0.02);
-      await sushiswapRouter.setPriceRatio(await tokenB.getAddress(), await tokenA.getAddress(), 0.01);
+      await uniswapRouter.setPriceRatio(await tokenC.getAddress(), await tokenB.getAddress(), 20);
+      await sushiswapRouter.setPriceRatio(await tokenB.getAddress(), await tokenA.getAddress(), 10);
 
       const tx = await advancedArbitrageEngine.executeArbitrage(
         await tokenA.getAddress(),
@@ -596,8 +596,8 @@ describe("Stress Tests", function () {
       const finalBalance = await tokenA.balanceOf(await advancedArbitrageEngine.getAddress());
 
       // Check for consistent gas usage (indicates no memory leaks)
-      const avgGasUsed = gasUsedHistory.reduce((a, b) => a + b, 0) / gasUsedHistory.length;
-      const gasVariance = gasUsedHistory.reduce((sum, gas) => sum + Math.pow(gas - avgGasUsed, 2), 0) / gasUsedHistory.length;
+      const avgGasUsed = gasUsedHistory.reduce((a, b) => Number(a) + Number(b), 0) / gasUsedHistory.length;
+      const gasVariance = gasUsedHistory.reduce((sum, gas) => sum + Math.pow(Number(gas) - avgGasUsed, 2), 0) / gasUsedHistory.length;
       const gasStdDev = Math.sqrt(gasVariance);
 
       console.log(`Average gas used: ${avgGasUsed}`);
