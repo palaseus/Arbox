@@ -5,6 +5,7 @@ import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomicfoundation/hardhat-verify";
 import "@typechain/hardhat";
 import "@typechain/ethers-v6";
+import "solidity-coverage";
 import "dotenv/config";
 
 const config: HardhatUserConfig = {

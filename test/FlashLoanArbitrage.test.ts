@@ -199,7 +199,7 @@ describe("FlashLoanArbitrage", function () {
           await token.getAddress(),
           ethers.parseEther("1"),
           routes,
-          0
+          ethers.parseEther("0.1") // Provide a valid minProfit
         )
       ).to.be.revertedWith("executeOperation failed");
     });

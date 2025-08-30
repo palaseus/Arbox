@@ -4,7 +4,7 @@
 - **AI-Powered** arbitrage strategies
 - **MEV Protection** from front-running
 - **Real-time monitoring** dashboard
-- **Enterprise-grade** security
+- **Advanced** security
 - **Zero real money** required for testing
 
 ## **⚡ 5-Minute Local Demo**
