@@ -22,22 +22,30 @@ Your advanced arbitrage engine is **LIVE and RUNNING** with:
 
 ## 🎯 **Quick Start - Run Your Engine**
 
-### **Step 1: Start Mainnet Fork**
+### **Step 1: Setup Environment**
 ```bash
 cd ~/Arbox/Arbox
-npx hardhat node --fork https://mainnet.infura.io/v3/47a4155be9f941a5a5a6a6c841f01831
+# Configure your .env file with API keys (see AI_SETUP_GUIDE.md)
 ```
 
-### **Step 2: Deploy Advanced Engine**
+### **Step 2: Start Mainnet Fork**
 ```bash
-cd ~/Arbox/Arbox
+npx hardhat node --fork https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID
+```
+
+### **Step 3: Deploy Advanced Engine**
+```bash
 npx hardhat run scripts/deploy-mainnet-fork.ts --network localhost
 ```
 
-### **Step 3: Watch It Work**
+### **Step 4: Watch It Work**
 ```bash
-cd ~/Arbox/Arbox
 npx hardhat run scripts/quick-demo.ts --network localhost
+```
+
+### **Step 5: Test AI Integration**
+```bash
+npx ts-node scripts/test-deepseek-ai.ts
 ```
 
 ## 🚀 **Revolutionary Features**
@@ -106,8 +114,8 @@ npx hardhat run scripts/quick-demo.ts --network localhost
 
 3. **Set up environment variables**
    ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
+   # See AI_SETUP_GUIDE.md for detailed configuration
+   # Create .env file with your API keys and configuration
    ```
 
 4. **Compile contracts**
