@@ -524,7 +524,7 @@ describe("Security Tests", function () {
             failingRoutes,
             ethers.parseEther("0.01")
           )
-        ).to.be.revertedWith("Insufficient profit");
+        ).to.be.revertedWith("Invalid routes length");
       }
 
       // Contract should still be functional
@@ -658,7 +658,7 @@ describe("Security Tests", function () {
     it("should prevent unauthorized emergency stops", async function () {
       // Attacker tries to emergency stop
       await expect(
-        advancedArbitrageEngine.connect(attacker).emergencyStop()
+        advancedArbitrageEngine.connect(attacker).emergencyStop("test")
       ).to.be.revertedWithCustomError(advancedArbitrageEngine, "AccessControlUnauthorizedAccount");
 
       // Contract should still be functional

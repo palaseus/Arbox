@@ -308,12 +308,13 @@ describe("Integration Tests", function () {
         }
       ];
 
+      // Set up a scenario where minProfit is higher than the simulated profit
       await expect(
         advancedArbitrageEngine.executeArbitrage(
           await tokenA.getAddress(),
           ethers.parseEther("1"),
           routes,
-          ethers.parseEther("0.01")
+          ethers.parseEther("1") // Set minProfit higher than the 5% simulated profit
         )
       ).to.be.revertedWith("Insufficient profit");
     });
