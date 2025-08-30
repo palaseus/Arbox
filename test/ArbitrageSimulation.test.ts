@@ -73,6 +73,7 @@ describe("Arbitrage Simulation", function () {
     const deployed = await FlashLoanArbitrage.deploy(
       poolAddr,
       profitAddr,
+      minProfit, // Add missing minProfit parameter
       minProfitPercentage,
       maxSlippage,
       maxGasPrice

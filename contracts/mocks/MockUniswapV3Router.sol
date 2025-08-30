@@ -51,7 +51,7 @@ contract MockUniswapV3Router {
         require(amountOut >= amountOutMinimum, "Insufficient output amount");
 
         // Transfer tokens
-        IERC20(tokenIn).safeTransferFrom(address(this), address(this), amountIn);
+        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenOut).safeTransfer(recipient, amountOut);
 
         // Update reserves

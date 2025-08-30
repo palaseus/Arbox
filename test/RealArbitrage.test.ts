@@ -92,6 +92,12 @@ describe("Real Arbitrage Simulation", function () {
     // Deploy routers
     const maliciousRouter = await ethers.deployContract("MaliciousRouter", [ZeroAddress]);
 
+    // Whitelist tokens for arbitrage
+    await arbitrage.whitelistToken(String(config.tokens.WETH.address));
+    await arbitrage.whitelistToken(String(config.tokens.USDC.address));
+    await arbitrage.whitelistToken(String(config.tokens.DAI.address));
+    await arbitrage.whitelistToken(String(config.tokens.USDT.address));
+
     // Register routers in the arbitrage contract
     await arbitrage.addRouter(await uniswapRouter.getAddress(), await uniswapRouter.getAddress());
     await arbitrage.addRouter(await sushiswapRouter.getAddress(), await sushiswapRouter.getAddress());

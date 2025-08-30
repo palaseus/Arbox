@@ -57,7 +57,7 @@ describe("ERC-4337 Arbitrage", function () {
         await paymaster.waitForDeployment();
         
         // Deploy mock Aave Pool
-        const MockPool = await ethers.getContractFactory("MockAavePool");
+        const MockPool = await ethers.getContractFactory("MockAaveLendingPool");
         const mockPool = await MockPool.deploy();
         await mockPool.waitForDeployment();
 

@@ -21,7 +21,7 @@ async function main() {
   const token = await MockToken.deploy("Test Token", "TEST", 18);
   await token.waitForDeployment();
 
-  const MockPool = await ethers.getContractFactory("MockAavePool");
+  const MockPool = await ethers.getContractFactory("MockAaveLendingPool");
   const mockPool = await MockPool.deploy();
   await mockPool.waitForDeployment();
 
