@@ -1,106 +1,134 @@
 import { ethers } from "hardhat";
+import { AdvancedArbitrageEngine, MEVProtector } from "../typechain-types";
 
 async function main() {
-  console.log("🚀 Deploying Advanced Arbitrage Engine to Testnet...");
-  
+  console.log("🚀 Deploying Arbitrage Engine to Sepolia Testnet...\n");
+
   const [deployer] = await ethers.getSigners();
-  console.log("📝 Deploying from:", await deployer.getAddress());
-  console.log("💰 Balance:", ethers.formatEther(await deployer.provider.getBalance(await deployer.getAddress())), "ETH");
+  console.log(`📝 Deploying from: ${deployer.address}`);
   
-  // Deploy MEV Protector
-  console.log("\n🛡️ Deploying MEV Protector...");
-  const MEVProtector = await ethers.getContractFactory("MEVProtector");
-  const mevProtector = await MEVProtector.deploy(await deployer.getAddress());
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log(`💰 Balance: ${ethers.formatEther(balance)} ETH\n`);
+
+  if (balance < ethers.parseEther("0.01")) {
+    throw new Error("Insufficient balance for deployment. Get testnet ETH from faucets.");
+  }
+
+  // Deploy MEV Protector first
+  console.log("🔒 Deploying MEV Protector...");
+  const mevProtector = await ethers.deployContract("MEVProtector", [deployer.address]);
   await mevProtector.waitForDeployment();
-  console.log("✅ MEV Protector deployed to:", await mevProtector.getAddress());
-  
-  // Deploy AI Strategy
-  console.log("\n🤖 Deploying AI Strategy...");
-  const AIStrategy = await ethers.getContractFactory("AIArbitrageStrategy");
-  const aiStrategy = await AIStrategy.deploy();
-  await aiStrategy.waitForDeployment();
-  console.log("✅ AI Strategy deployed to:", await aiStrategy.getAddress());
-  
+  const mevProtectorAddress = await mevProtector.getAddress();
+  console.log(`✅ MEV Protector deployed to: ${mevProtectorAddress}`);
+
   // Deploy Advanced Arbitrage Engine
   console.log("\n⚡ Deploying Advanced Arbitrage Engine...");
-  const AdvancedArbitrageEngine = await ethers.getContractFactory("AdvancedArbitrageEngine");
-  const advancedEngine = await AdvancedArbitrageEngine.deploy(
-    await mevProtector.getAddress(),
-    await deployer.getAddress()
-  );
-  await advancedEngine.waitForDeployment();
-  console.log("✅ Advanced Engine deployed to:", await advancedEngine.getAddress());
+  const advancedArbitrageEngine = await ethers.deployContract("AdvancedArbitrageEngine", [
+    mevProtectorAddress,
+    deployer.address, // admin
+    deployer.address, // operator
+    deployer.address  // treasury
+  ]);
+  await advancedArbitrageEngine.waitForDeployment();
+  const engineAddress = await advancedArbitrageEngine.getAddress();
+  console.log(`✅ Advanced Arbitrage Engine deployed to: ${engineAddress}`);
+
+  // Grant roles
+  console.log("\n🔑 Setting up roles and permissions...");
   
-  // Setup initial configuration
-  console.log("\n🔧 Setting up initial configuration...");
+  const OPERATOR_ROLE = await advancedArbitrageEngine.OPERATOR_ROLE();
+  const DEFAULT_ADMIN_ROLE = await advancedArbitrageEngine.DEFAULT_ADMIN_ROLE();
   
-  const STRATEGIST_ROLE = ethers.keccak256(ethers.toUtf8Bytes("STRATEGIST_ROLE"));
-  const OPERATOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("OPERATOR_ROLE"));
-  const EMERGENCY_ROLE = ethers.keccak256(ethers.toUtf8Bytes("EMERGENCY_ROLE"));
+  await advancedArbitrageEngine.grantRole(OPERATOR_ROLE, deployer.address);
+  console.log(`✅ Granted OPERATOR_ROLE to ${deployer.address}`);
   
-  // Grant roles to deployer
-  await advancedEngine.grantRole(STRATEGIST_ROLE, await deployer.getAddress());
-  await advancedEngine.grantRole(OPERATOR_ROLE, await deployer.getAddress());
-  await advancedEngine.grantRole(EMERGENCY_ROLE, await deployer.getAddress());
-  console.log("✅ Roles granted to deployer");
+  await advancedArbitrageEngine.grantRole(DEFAULT_ADMIN_ROLE, deployer.address);
+  console.log(`✅ Granted DEFAULT_ADMIN_ROLE to ${deployer.address}`);
+
+  // Set initial risk parameters
+  console.log("\n⚙️  Configuring initial risk parameters...");
   
-  // Add AI Strategy
-  const strategyId = ethers.keccak256(ethers.toUtf8Bytes("ai_strategy_v1"));
-  const strategyConfig = {
-    isActive: true,
-    minProfit: ethers.parseEther("0.1"),
-    maxSlippage: 100,
-    gasLimit: 500000,
-    cooldownPeriod: 0,
-    lastExecution: 0,
-    successRate: 0,
-    avgProfit: 0
+  const riskParams = {
+    maxExposurePerToken: ethers.parseEther("1000"), // 1000 ETH max per token
+    maxExposurePerStrategy: ethers.parseEther("5000"), // 5000 ETH max per strategy
+    minProfitThreshold: ethers.parseEther("0.001"), // 0.001 ETH minimum profit
+    maxGasPrice: ethers.parseUnits("50", "gwei"), // 50 gwei max gas price
+    maxSlippage: 500, // 5% max slippage
+    maxBlockDelay: 3 // 3 blocks max delay
   };
+
+  await advancedArbitrageEngine.updateRiskParams(riskParams);
+  console.log("✅ Risk parameters configured");
+
+  // Set token risk profiles
+  console.log("\n🪙 Setting up token risk profiles...");
   
-  await advancedEngine.addStrategy(strategyId, await aiStrategy.getAddress(), strategyConfig);
-  console.log("✅ AI Strategy added to engine");
+  const TOKENS = {
+    WETH: "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+    USDC: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    DAI: "0x68194a729C2450ad26072b3D33ADaCbcef39D574"
+  };
+
+  for (const [symbol, address] of Object.entries(TOKENS)) {
+    try {
+      await advancedArbitrageEngine.updateTokenRiskProfile(
+        address,
+        ethers.parseEther("100"), // 100 ETH max exposure
+        1000 // 10% max slippage
+      );
+      console.log(`✅ ${symbol} risk profile configured`);
+    } catch (error) {
+      console.log(`⚠️  Failed to configure ${symbol}: ${error}`);
+    }
+  }
+
+  // Verify deployment
+  console.log("\n🔍 Verifying deployment...");
   
-  // Deployment Summary
-  console.log("\n🎉 Deployment Complete!");
-  console.log("==================================");
-  console.log("Network:", (await ethers.provider.getNetwork()).name);
-  console.log("Deployer:", await deployer.getAddress());
-  console.log("MEV Protector:", await mevProtector.getAddress());
-  console.log("AI Strategy:", await aiStrategy.getAddress());
-  console.log("Advanced Engine:", await advancedEngine.getAddress());
-  console.log("==================================");
+  const isPaused = await advancedArbitrageEngine.paused();
+  const hasOperatorRole = await advancedArbitrageEngine.hasRole(OPERATOR_ROLE, deployer.address);
+  const hasAdminRole = await advancedArbitrageEngine.hasRole(DEFAULT_ADMIN_ROLE, deployer.address);
   
-  console.log("\n📋 Next Steps:");
-  console.log("1. Verify contracts on block explorer");
-  console.log("2. Test functionality with small amounts");
-  console.log("3. Monitor performance with dashboard");
-  console.log("4. Ready for mainnet deployment!");
+  console.log(`📊 System Status:`);
+  console.log(`  Paused: ${isPaused}`);
+  console.log(`  Has Operator Role: ${hasOperatorRole}`);
+  console.log(`  Has Admin Role: ${hasAdminRole}`);
+
+  // Deployment summary
+  console.log("\n🎉 DEPLOYMENT COMPLETE!");
+  console.log("=" * 50);
+  console.log(`🌐 Network: Sepolia Testnet`);
+  console.log(`🔒 MEV Protector: ${mevProtectorAddress}`);
+  console.log(`⚡ Arbitrage Engine: ${engineAddress}`);
+  console.log(`👤 Admin/Operator: ${deployer.address}`);
+  console.log("=" * 50);
   
+  console.log("\n🎯 Next Steps:");
+  console.log("1. Verify contracts on Etherscan:");
+  console.log(`   https://sepolia.etherscan.io/address/${engineAddress}`);
+  console.log("2. Run real market test:");
+  console.log(`   npx hardhat run scripts/real-market-test.ts --network sepolia`);
+  console.log("3. Monitor system:");
+  console.log(`   npx hardhat run scripts/monitor-testnet.ts --network sepolia`);
+
   // Save deployment info
   const deploymentInfo = {
-    network: (await ethers.provider.getNetwork()).name,
-    chainId: (await ethers.provider.getNetwork()).chainId,
-    deployer: await deployer.getAddress(),
-    timestamp: new Date().toISOString(),
-    contracts: {
-      mevProtector: await mevProtector.getAddress(),
-      aiStrategy: await aiStrategy.getAddress(),
-      advancedEngine: await advancedEngine.getAddress()
-    }
+    network: "sepolia",
+    chainId: 11155111,
+    mevProtector: mevProtectorAddress,
+    arbitrageEngine: engineAddress,
+    admin: deployer.address,
+    timestamp: new Date().toISOString()
   };
-  
-  const fs = require("fs");
-  fs.writeFileSync(
-    `deployment-testnet-${Date.now()}.json`,
+
+  console.log("\n💾 Deployment info saved to deployment-info.json");
+  require('fs').writeFileSync(
+    'deployment-info.json', 
     JSON.stringify(deploymentInfo, null, 2)
   );
-  
-  console.log("\n💾 Deployment info saved to file");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error("❌ Deployment failed:", error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error("❌ Deployment failed:", error);
+  process.exit(1);
+});
